@@ -56,8 +56,8 @@ func _build_ui() -> void:
 	mode_row.add_child(town_match_button)
 
 	brawl_button = _create_mode_button(
-		"One-Lane Brawl Graybox",
-		"Standalone developer preview only.\nTest basic movement; combat and teams are not implemented yet.",
+		"One-Lane Brawl Preview",
+		"Developer-only battle sandbox.\nThe match now launches this battle from its confrontation finale.",
 		Color(0.34, 0.25, 0.48)
 	)
 	brawl_button.name = "BrawlButton"
@@ -65,7 +65,7 @@ func _build_ui() -> void:
 	mode_row.add_child(brawl_button)
 
 	var footer := Label.new()
-	footer.text = "DEV SCENES: TOWN MATCH | BRAWL GRAYBOX (NOT CONNECTED TO THE MATCH FINALE)"
+	footer.text = "DEV PREVIEW ONLY — NORMAL GAMEPLAY STARTS IN TOWN MATCH"
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	footer.add_theme_font_size_override("font_size", 12)
 	footer.modulate = Color(0.68, 0.73, 0.82)

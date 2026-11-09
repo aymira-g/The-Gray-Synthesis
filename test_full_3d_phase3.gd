@@ -9,7 +9,7 @@ extends SceneTree
 # 3. 3D Civilian Court Ceremony (podium walk, 3D speech bubble, sequential voting, fast forward)
 # 4. 4-0 Court Mandate Instant Victory & Podium Celebration in 3D
 # 5. Split Court Strategic Deliberation Window (Confrontation vs Peace) & Input Handling
-# 6. 3D Confrontation Finale (Generator Overdrive Tug-of-War pad channeling)
+# 6. Integrated One-Lane Brawl Confrontation Finale
 # 7. 3D Peace Finale (Common Works Holdout & Charter Ratification)
 # 8. Full Match Lifecycle Restart Loop (Key R -> start_new_match)
 # 9. Camera Director Interpolation Modes (wide_council, court_podium, follow_player, celebration)
@@ -205,51 +205,17 @@ func _init() -> void:
 	assert_test.call(gm.current_phase == gm.Phase.FINALE, "Game transitioned to Phase.FINALE")
 	assert_test.call(gm.finale_route == C.FINALE_ROUTE_CONFRONTATION, "Finale route set to Confrontation")
 	assert_test.call(main.strategic_overlay.visible == false, "Strategic overlay hidden")
-	assert_test.call(main.finale_overlay.visible == true, "Finale HUD overlay visible")
+	assert_test.call(main.finale_overlay.visible == false, "Town finale HUD stays hidden while the brawl is active")
 
 	# ------------------------------------------------------------------
-	# TEST GROUP 6: 3D Confrontation Finale (Generator Overdrive Tug-of-War)
+	# TEST GROUP 6: Integrated One-Lane Brawl Confrontation Finale
 	# ------------------------------------------------------------------
-	print("\n[TEST GROUP 6] 3D Confrontation Finale (Generator Tug-of-War)")
-	# Generator Overdrive pad is at Vector3(6.0, 0.05, 24.0)
-	var gen_pad: Dictionary = map.get_pad_by_id("generator")
-	assert_test.call(not gen_pad.is_empty(), "TownMap3D contains generator pad")
-	assert_test.call(gen_pad.get("position").distance_to(Vector3(6.0, 0.05, 24.0)) < 0.1, "Generator pad position matches Sector 4 coordinates")
-
-	# Unlock generator for testing
-	map.update_escalation_unlocks()
-
-	# Give player Ecology Operative role for testing tug
-	player.secret_role = "ecology"
-	gm.generator_tug_meter = 50.0
-
-	# Channel generator pad
-	player.position = Vector3(6.0, 0.05, 24.0)
-	var started_gen: bool = player.try_start_channel()
-	assert_test.call(started_gen == true, "Player starts channeling Overdrive Generator during Finale")
-	assert_test.call(player.active_pad.get("id") == "generator", "Player active_pad is 'generator'")
-
-	# Finish channeling generator pad as Ecology
-	var meter_before: float = gm.generator_tug_meter
-	map.finish_using_pad(player.active_pad, player, true)
-	gm._process(0.016)
-	assert_test.call(gm.generator_tug_meter < meter_before, "Ecology channeling generator pulled meter towards 0%% (before: %.1f, after: %.1f)" % [meter_before, gm.generator_tug_meter])
-
-	# Test Technology operative pull
-	player.secret_role = "technology"
-	var meter_mid: float = gm.generator_tug_meter
-	map.finish_using_pad(player.active_pad, player, true)
-	gm._process(0.016)
-	assert_test.call(gm.generator_tug_meter > meter_mid, "Technology channeling generator pulled meter towards 100%% (before: %.1f, after: %.1f)" % [meter_mid, gm.generator_tug_meter])
-
-	# Pull to 0% triggers Overdrive Ecology victory
-	player.secret_role = "ecology"
-	gm.generator_tug_meter = 2.0
-	map.finish_using_pad(player.active_pad, player, true)
-	gm._process(0.016)
-	assert_test.call(gm.generator_tug_meter <= 0.0, "Meter reached 0%%")
-	assert_test.call(gm.current_phase == gm.Phase.MATCH_OVER, "Reaching 0%% immediately ends match")
-	assert_test.call(gm.match_ending_title.find("ECOLOGY VICTORY") != -1, "Match ending title announces Ecology Overdrive Victory")
+	print("\n[TEST GROUP 6] Integrated One-Lane Brawl Confrontation Finale")
+	assert_test.call(main.brawl_arena != null, "Confrontation finale launches its dedicated brawl arena")
+	assert_test.call(gm.brawl_active, "Brawl suspends the town-finale countdown")
+	assert_test.call(is_equal_approx(gm.time_remaining, 600.0), "Confrontation starts with a 10-minute clock")
+	assert_test.call(not main.town_map.visible and not main.residents_root.visible, "Town scene is hidden during the brawl")
+	assert_test.call(main.ui_layer.visible == false, "Town HUD is hidden during the brawl")
 
 	# ------------------------------------------------------------------
 	# TEST GROUP 7: 3D Peace Finale (Common Works Crisis Holdout)
@@ -257,6 +223,7 @@ func _init() -> void:
 	print("\n[TEST GROUP 7] 3D Peace Finale (Common Works Crisis Holdout)")
 	gm.current_phase = gm.Phase.FINALE
 	gm.finale_route = C.FINALE_ROUTE_PEACE
+	gm.brawl_active = false
 	gm.charter_ratified = true
 	gm.holdout_active = false
 	gm.holdout_completed = true

@@ -9,7 +9,7 @@ extends Node3D
 # - Cinematic Director Camera: Isometric follow, Master Council Ring, Podium close-up, Celebration.
 # - Integrated 3D Court: 4 Civilians physically walk to the podium, deliver spoken testimony in 3D
 #   speech balloons, and cast live ballots with dynamic tally displays.
-# - 3D Finale: Overdrive Generator tug-of-war meter and Common Works crisis holdout.
+# - 3D Finale: Integrated one-lane confrontation brawl or Common Works peace holdout.
 # - Full-screen 3D Victory / Defeat ceremony and match statistics.
 # ==============================================================================
 
@@ -22,6 +22,7 @@ const PlaytestTuningPanelClass = preload("res://scripts/PlaytestTuningPanel3D.gd
 const SettingsMenuClass = preload("res://scripts/SettingsMenu3D.gd")
 const HeroDraftLobbyClass = preload("res://scripts/HeroDraftLobby3D.gd")
 const FirstMatchGuideClass = preload("res://scripts/FirstMatchGuide3D.gd")
+const BrawlArenaScene = preload("res://scenes/BrawlArena3D.tscn")
 const C = preload("res://scripts/GameConstants.gd")
 
 const CIVIC_JOBS: Array[String] = [
@@ -47,6 +48,7 @@ var residents: Array = []
 var bot_controllers: Array = []
 var spawn_positions: Array[Vector3] = []
 var player_node: CharacterBody3D
+var brawl_arena: Node3D
 
 # Camera Director Modes: "follow_player", "wide_council", "court_podium", "podium_celebration"
 var camera_mode: String = "wide_council"
@@ -614,7 +616,7 @@ Mouse Wheel / [Z]: Zoom Camera In / Out
 	s_vbox.add_child(s_head)
 
 	strategic_text_label = Label.new()
-	strategic_text_label.text = "Choose your faction route for the Finale:\n\n[1] Route A: Confrontation (Buried Generator Overdrive Tug-of-War)\n[2] Route B: Peace (Common Works Crisis Holdout & Charter Ratification)\n\nPress [1] or [2] to select, then [N] or [Enter] to Confirm."
+	strategic_text_label.text = "Choose your faction route for the Finale:\n\n[1] Route A: Confrontation (10-minute team brawl over the cores)\n[2] Route B: Peace (Common Works Crisis Holdout & Charter Ratification)\n\nPress [1] or [2] to select, then [N] or [Enter] to Confirm."
 	strategic_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	strategic_text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	strategic_text_label.add_theme_font_size_override("font_size", 16)
@@ -748,6 +750,35 @@ Mouse Wheel / [Z]: Zoom Camera In / Out
 	archive_dilemma_timer_label.add_theme_font_size_override("font_size", 12)
 	archive_dilemma_timer_label.modulate = Color(0.92, 0.78, 0.42)
 	arc_vbox.add_child(archive_dilemma_timer_label)
+
+func _start_brawl_finale() -> void:
+	if brawl_arena != null:
+		return
+	ui_layer.visible = false
+	town_map.visible = false
+	town_map.process_mode = Node.PROCESS_MODE_DISABLED
+	residents_root.visible = false
+	residents_root.process_mode = Node.PROCESS_MODE_DISABLED
+	camera.current = false
+	brawl_arena = BrawlArenaScene.instantiate()
+	brawl_arena.name = "ConfrontationBrawlFinale"
+	brawl_arena.configure_match_finale(game_manager, residents, player_node)
+	add_child(brawl_arena)
+	if audio_manager != null:
+		audio_manager.play_phase_stinger("finale")
+
+func _restore_town_after_brawl() -> void:
+	if brawl_arena != null:
+		brawl_arena.queue_free()
+		brawl_arena = null
+	town_map.visible = true
+	town_map.process_mode = Node.PROCESS_MODE_INHERIT
+	residents_root.visible = true
+	residents_root.process_mode = Node.PROCESS_MODE_INHERIT
+	if camera != null:
+		camera.current = true
+	if ui_layer != null:
+		ui_layer.visible = true
 
 func _refresh_archive_dilemma_overlay() -> void:
 	if game_manager == null or player_node == null or archive_dilemma_options_container == null:
@@ -975,14 +1006,19 @@ func _on_phase_changed(new_phase: int) -> void:
 			_show_phase_banner("CIVILIAN COURT IN SESSION", "4 Unaffiliated Civilians take the podium to cast decisive alignment ballots", Color(0.50, 0.90, 1.0))
 
 		game_manager.Phase.FINALE:
-			camera_mode = "follow_player"
-			finale_overlay.visible = true
-			add_camera_trauma(0.45)
-			if audio_manager != null:
-				audio_manager.play_phase_stinger("finale")
-			_show_phase_banner("PHASE 6: FINALE COMMENCED", "The town's destiny hangs in the balance — secure the decisive outcome!", Color(1.0, 0.40, 0.40))
+			if game_manager.finale_route == C.FINALE_ROUTE_CONFRONTATION and game_manager.brawl_active:
+				_start_brawl_finale()
+			else:
+				_restore_town_after_brawl()
+				camera_mode = "follow_player"
+				finale_overlay.visible = true
+				add_camera_trauma(0.45)
+				if audio_manager != null:
+					audio_manager.play_phase_stinger("finale")
+				_show_phase_banner("PHASE 6: FINALE COMMENCED", "The town's destiny hangs in the balance — secure the decisive outcome!", Color(1.0, 0.40, 0.40))
 
 		game_manager.Phase.MATCH_OVER:
+			_restore_town_after_brawl()
 			camera_mode = "podium_celebration"
 			game_over_overlay.visible = true
 			add_camera_trauma(0.20)
@@ -1064,7 +1100,7 @@ func _on_state_updated() -> void:
 		if not _prev_archive_opened and game_manager.archive_opened:
 			_prev_archive_opened = true
 			add_camera_trauma(0.35)
-		if game_manager.current_phase == game_manager.Phase.FINALE:
+		if game_manager.current_phase == game_manager.Phase.FINALE and not game_manager.brawl_active:
 			var cur_tug_diff: float = absf(game_manager.generator_tech_primed - game_manager.generator_eco_stabilized)
 			if absf(cur_tug_diff - _prev_tug_diff) >= 5.0:
 				_prev_tug_diff = cur_tug_diff
@@ -1332,6 +1368,8 @@ func _setup_game_over_display() -> void:
 # Input Handling Across All Phases
 # ------------------------------------------------------------------------------
 func _unhandled_input(event: InputEvent) -> void:
+	if brawl_arena != null:
+		return
 	if event is InputEventMouseButton and event.is_pressed():
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			camera_zoom = maxf(0.55, camera_zoom - 0.08)
@@ -1564,10 +1602,10 @@ func _update_hud() -> void:
 			strategic_overlay.visible = true
 			var cur_choice := "None (Default: Confrontation)"
 			if game_manager.player_strategic_choice == C.STRATEGIC_CHOICE_CONFRONTATION:
-				cur_choice = "Confrontation (Buried Generator)"
+				cur_choice = "Confrontation (One-Lane Brawl)"
 			elif game_manager.player_strategic_choice == C.STRATEGIC_CHOICE_PEACE:
 				cur_choice = "Peace (Common Works Holdout)"
-			strategic_text_label.text = "CIVILIAN COURT SPLIT: %s\nYour Current Choice: %s\n\n[1] Route A: Confrontation (Generator Tug-of-War)\n[2] Route B: Peace (Common Works Crisis Holdout)\n\nPress [1] or [2] to choose, then [N] or [Enter] to Confirm." % [
+			strategic_text_label.text = "CIVILIAN COURT SPLIT: %s\nYour Current Choice: %s\n\n[1] Route A: Confrontation (10-minute One-Lane Brawl)\n[2] Route B: Peace (Common Works Crisis Holdout)\n\nPress [1] or [2] to choose, then [N] or [Enter] to Confirm." % [
 				game_manager.court_split_summary, cur_choice
 			]
 		else:
@@ -1575,12 +1613,10 @@ func _update_hud() -> void:
 
 	# Update Finale Overlay
 	if finale_overlay != null:
-		if game_manager.current_phase == game_manager.Phase.FINALE:
+		if game_manager.current_phase == game_manager.Phase.FINALE and not game_manager.brawl_active:
 			finale_overlay.visible = true
 			if game_manager.finale_route == C.FINALE_ROUTE_CONFRONTATION:
-				var tech_pct := int(game_manager.generator_tug_meter)
-				var eco_pct := 100 - tech_pct
-				finale_meter_label.text = "FINALE: GENERATOR TUG-OF-WAR\n[ECOLOGY: %d%%]  <=====>  [TECHNOLOGY: %d%%]" % [eco_pct, tech_pct]
+				finale_meter_label.text = "FINALE: ONE-LANE CONFRONTATION BRAWL\nDestroy the opposing core before time expires."
 				finale_meter_label.modulate = Color(1.0, 0.65, 0.35)
 			else:
 				finale_meter_label.text = "FINALE: COMMON WORKS CHARTER HOLDOUT\nCrisis Defense: %.0fs  |  Common Works: %.0f%%" % [
@@ -1627,7 +1663,7 @@ func _update_hud() -> void:
 		status_label.text = "[STRATEGIC DECISION] Press [1] for Confrontation | [2] for Peace | [N] to Confirm | [H] Help"
 	elif game_manager.current_phase == game_manager.Phase.FINALE:
 		if game_manager.finale_route == C.FINALE_ROUTE_CONFRONTATION:
-			status_label.text = "[FINALE: CONFRONTATION] Channel Overdrive Generator to pull the meter! [E] Channel | [H] Help"
+			status_label.text = "[FINALE: CONFRONTATION] Destroy the opposing faction's core in the One-Lane Brawl."
 		else:
 			status_label.text = "[FINALE: PEACE] Protect Common Works! Clear hazards & hold out! [E] Channel | [H] Help"
 	elif game_manager.current_phase == game_manager.Phase.MATCH_OVER:

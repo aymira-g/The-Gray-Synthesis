@@ -35,6 +35,7 @@ const MAX_WATER: float = 100.0
 const MAX_STABILITY: float = 100.0
 const MAX_SCRAP: int = 20
 const MAX_COMMON_WORKS: float = 100.0
+const BRAWL_FINALE_DURATION: float = 600.0
 
 const BASE_WATER_DRAIN: float = 0.35
 const BASE_STABILITY_DRAIN: float = 0.30
@@ -160,6 +161,9 @@ var critical_seconds: float = 0.0
 
 var recent_events: Array[Dictionary] = []
 var session_residents: Array = []
+var brawl_active: bool = false
+var brawl_winner_faction: String = ""
+var brawl_end_reason: String = ""
 
 # Milestone 4 evidence is private by resident until its owner tables it at Council.
 var evidence_journals: Dictionary = {}
@@ -429,6 +433,8 @@ func set_phase(new_phase: int) -> void:
 	current_phase = new_phase
 	time_remaining = PHASE_DURATIONS.get(new_phase, 0.0)
 	is_sandbox_finished = (new_phase == Phase.MATCH_OVER)
+	if new_phase == Phase.MATCH_OVER:
+		brawl_active = false
 
 	match new_phase:
 		Phase.BRIEFING:
@@ -452,10 +458,14 @@ func set_phase(new_phase: int) -> void:
 			dossier_open = false
 			charter_modal_open = false
 			if finale_route == C.FINALE_ROUTE_CONFRONTATION:
+				brawl_active = true
+				brawl_winner_faction = ""
+				brawl_end_reason = ""
 				generator_tug_meter = clampf(50.0 + 0.25 * (generator_tech_primed - generator_eco_stabilized), 20.0, 80.0)
-				time_remaining = PHASE_DURATIONS[Phase.FINALE]
-				log_event("Finale (Confrontation): Battle for Buried Generator begins! Meter at %d%%." % int(generator_tug_meter), Color(1.0, 0.60, 0.45))
+				time_remaining = BRAWL_FINALE_DURATION
+				log_event("Finale (Confrontation): One-lane brawl begins! The cores have %d minutes." % int(BRAWL_FINALE_DURATION / 60.0), Color(1.0, 0.60, 0.45))
 			elif finale_route == C.FINALE_ROUTE_PEACE:
+				brawl_active = false
 				time_remaining = PHASE_DURATIONS[Phase.FINALE]
 				charter_eco_ratified = false
 				charter_tech_ratified = false
@@ -466,6 +476,7 @@ func set_phase(new_phase: int) -> void:
 				active_hazards.clear()
 				log_event("Finale (Peace): Ratify Charter at West (Eco) & East (Tech) Common Works consoles.", Color(0.65, 0.95, 0.75))
 			else:
+				brawl_active = false
 				log_event("Finale (3:30): Final struggle over town systems and the Common Works!", Color(1.0, 0.58, 0.52))
 		Phase.MATCH_OVER:
 			dossier_open = false
@@ -496,6 +507,8 @@ func advance_to_next_phase() -> void:
 			else:
 				start_strategic_decision()
 		Phase.FINALE:
+			if brawl_active:
+				return
 			if finale_route == C.FINALE_ROUTE_PEACE and (not charter_ratified or holdout_active or not holdout_completed):
 				trigger_failed_peace_fallback()
 				return
@@ -522,6 +535,9 @@ func _reset_evidence_state() -> void:
 
 func _reset_milestone_6_state() -> void:
 	finale_route = C.FINALE_ROUTE_NONE
+	brawl_active = false
+	brawl_winner_faction = ""
+	brawl_end_reason = ""
 	strategic_decision_active = false
 	strategic_timer = 15.0
 	strategic_decision_resolved = false
@@ -1505,6 +1521,18 @@ func _evaluate_match_outcome() -> void:
 		match_ending_title = "GRAY SYNTHESIS — CHARTER RATIFIED & RECONCILIATION ACHIEVED"
 		match_ending_subtitle = "Both factions cooperated under the Common Works Charter. Water, Crops, and Infrastructure survived the crisis!"
 		match_ending_color = Color(0.85, 0.72, 1.0)
+	elif finale_route == C.FINALE_ROUTE_CONFRONTATION and brawl_winner_faction in ["ecology", "technology"]:
+		var winner_name := brawl_winner_faction.capitalize()
+		if brawl_end_reason == "core_destroyed":
+			match_ending_title = "%s VICTORY — ENEMY CORE DESTROYED" % winner_name.to_upper()
+			match_ending_subtitle = "%s destroyed the opposing core during the one-lane confrontation." % winner_name
+		elif brawl_end_reason == "timeout":
+			match_ending_title = "%s VICTORY — CORE HEALTH LEAD" % winner_name.to_upper()
+			match_ending_subtitle = "The 10-minute finale expired with %s holding more core health." % winner_name
+		else:
+			match_ending_title = "%s VICTORY — SUDDEN DEATH" % winner_name.to_upper()
+			match_ending_subtitle = "The cores were tied at timeout; %s won by dealing the first sudden-death core damage." % winner_name
+		match_ending_color = Color(0.45, 0.92, 0.58) if brawl_winner_faction == "ecology" else Color(0.42, 0.80, 0.98)
 	else:
 		# Route A: Confrontation (or failed peace overtime)
 		var eco_won: bool = false
@@ -1579,6 +1607,8 @@ func _evaluate_match_outcome() -> void:
 
 func _process(delta: float) -> void:
 	if current_phase == Phase.LOBBY or current_phase == Phase.MATCH_OVER:
+		return
+	if current_phase == Phase.FINALE and brawl_active:
 		return
 
 	if current_phase == Phase.COURT:
@@ -2111,12 +2141,12 @@ func resolve_strategic_decision() -> void:
 		log_event("Both factions ratified PEACE! Proceeding to the Common Works Charter.", Color(0.55, 0.95, 0.70))
 	else:
 		finale_route = C.FINALE_ROUTE_CONFRONTATION
-		log_event("Confrontation declared! Final battle over the Buried Generator begins.", Color(1.0, 0.60, 0.45))
+		log_event("Confrontation declared! The one-lane faction brawl begins.", Color(1.0, 0.60, 0.45))
 
 	set_phase(Phase.FINALE)
 
 func record_generator_tug(resident: Node) -> void:
-	if current_phase != Phase.FINALE or finale_route != C.FINALE_ROUTE_CONFRONTATION or resident == null:
+	if current_phase != Phase.FINALE or finale_route != C.FINALE_ROUTE_CONFRONTATION or brawl_active or resident == null:
 		return
 	var allegiance: String = get_resident_alignment(resident)
 	var delta_val: float = 0.0
@@ -2132,6 +2162,27 @@ func record_generator_tug(resident: Node) -> void:
 		resident.resident_name, allegiance.capitalize(), delta_val
 	], Color(0.42, 0.82, 0.98) if delta_val > 0.0 else Color(0.45, 0.92, 0.58))
 	state_updated.emit()
+
+func update_brawl_time_remaining(seconds_left: float, delta: float) -> void:
+	if current_phase != Phase.FINALE or not brawl_active:
+		return
+	var previous_displayed_second := ceili(time_remaining)
+	time_remaining = maxf(0.0, seconds_left)
+	match_elapsed += maxf(0.0, delta)
+	if ceili(time_remaining) != previous_displayed_second:
+		state_updated.emit()
+
+func resolve_brawl_victory(winner_faction: String, end_reason: String) -> void:
+	if current_phase != Phase.FINALE or finale_route != C.FINALE_ROUTE_CONFRONTATION or not brawl_active:
+		return
+	if winner_faction != "ecology" and winner_faction != "technology":
+		push_error("Cannot resolve brawl with unknown winner faction '%s'." % winner_faction)
+		return
+	brawl_winner_faction = winner_faction
+	brawl_end_reason = end_reason
+	brawl_active = false
+	log_event("%s won the confrontation brawl (%s)." % [winner_faction.capitalize(), end_reason.replace("_", " ")], Color(0.85, 0.9, 0.98))
+	set_phase(Phase.MATCH_OVER)
 
 func record_charter_ratification(resident: Node, console_type: String) -> void:
 	if current_phase != Phase.FINALE or finale_route != C.FINALE_ROUTE_PEACE or resident == null:
