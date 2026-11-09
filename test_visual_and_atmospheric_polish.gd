@@ -102,6 +102,13 @@ func _init() -> void:
 	print("\n[TEST GROUP 3] Sector Floor Inlays & Architectural Props")
 	var decor: Node3D = map.get_node_or_null("SectorDecorations")
 	assert_test.call(decor != null, "SectorDecorations root node present in TownMap3D")
+	var wayfinding: Node3D = decor.get_node_or_null("SectorWayfinding")
+	assert_test.call(wayfinding != null and wayfinding.get_child_count() == 4, "Four sector wayfinding signs identify the main districts")
+	if wayfinding != null:
+		for sign_name in ["TownSquareSign", "PumpStationSign", "GreenhouseSign", "SalvageYardSign"]:
+			var sign: Node3D = wayfinding.get_node_or_null(sign_name)
+			assert_test.call(sign != null and sign.get_node_or_null("SignPanel") is MeshInstance3D, "%s has a visible sign panel" % sign_name)
+			assert_test.call(sign != null and sign.get_node_or_null("SectorLabel") is Label3D, "%s has readable sector text" % sign_name)
 
 	# Sector Floors
 	var floors: Node3D = decor.get_node_or_null("SectorFloors")

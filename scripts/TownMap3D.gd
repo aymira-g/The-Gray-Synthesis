@@ -353,6 +353,77 @@ func _setup_sector_decorations() -> void:
 	_setup_pump_station_decor(decor_root)
 	_setup_greenhouse_decor(decor_root)
 	_setup_salvage_yard_decor(decor_root)
+	_setup_sector_wayfinding(decor_root)
+
+func _setup_sector_wayfinding(root: Node3D) -> void:
+	var signs_root := Node3D.new()
+	signs_root.name = "SectorWayfinding"
+	root.add_child(signs_root)
+
+	_create_wayfinding_sign(signs_root, "TownSquareSign", "TOWN SQUARE", "COUNCIL & CLINIC", Vector3(11.0, 0.0, 4.0), Color(0.92, 0.72, 0.42))
+	_create_wayfinding_sign(signs_root, "PumpStationSign", "PUMP STATION", "WATER SYSTEMS", Vector3(-11.0, 0.0, 14.0), Color(0.36, 0.78, 0.95))
+	_create_wayfinding_sign(signs_root, "GreenhouseSign", "GREENHOUSE", "CROPS & HYDROPONICS", Vector3(-10.0, 0.0, -13.0), Color(0.48, 0.88, 0.52))
+	_create_wayfinding_sign(signs_root, "SalvageYardSign", "SALVAGE YARD", "REPAIR & REUSE", Vector3(10.0, 0.0, -13.0), Color(0.94, 0.60, 0.34))
+
+func _create_wayfinding_sign(root: Node3D, sign_name: String, title: String, subtitle: String, sign_position: Vector3, accent: Color) -> void:
+	var sign := Node3D.new()
+	sign.name = sign_name
+	sign.position = sign_position
+	root.add_child(sign)
+
+	var post_material := StandardMaterial3D.new()
+	post_material.albedo_color = Color(0.20, 0.22, 0.24)
+	post_material.metallic = 0.68
+	post_material.roughness = 0.55
+
+	var post_mesh := CylinderMesh.new()
+	post_mesh.top_radius = 0.07
+	post_mesh.bottom_radius = 0.09
+	post_mesh.height = 2.15
+	for post_x in [-0.82, 0.82]:
+		var post := MeshInstance3D.new()
+		post.mesh = post_mesh
+		post.material_override = post_material
+		post.position = Vector3(post_x, 1.075, 0.0)
+		sign.add_child(post)
+
+	var panel := MeshInstance3D.new()
+	panel.name = "SignPanel"
+	var panel_mesh := BoxMesh.new()
+	panel_mesh.size = Vector3(1.95, 1.05, 0.12)
+	panel.mesh = panel_mesh
+	var panel_material := StandardMaterial3D.new()
+	panel_material.albedo_color = Color(0.13, 0.15, 0.17)
+	panel_material.metallic = 0.42
+	panel_material.roughness = 0.72
+	panel.material_override = panel_material
+	panel.position = Vector3(0.0, 1.75, 0.0)
+	sign.add_child(panel)
+
+	var accent_bar := MeshInstance3D.new()
+	accent_bar.name = "SectorAccent"
+	var accent_mesh := BoxMesh.new()
+	accent_mesh.size = Vector3(1.95, 0.08, 0.14)
+	accent_bar.mesh = accent_mesh
+	var accent_material := StandardMaterial3D.new()
+	accent_material.albedo_color = accent
+	accent_material.emission_enabled = true
+	accent_material.emission = accent
+	accent_material.emission_energy_multiplier = 0.45
+	accent_bar.material_override = accent_material
+	accent_bar.position = Vector3(0.0, 2.285, 0.0)
+	sign.add_child(accent_bar)
+
+	var label := Label3D.new()
+	label.name = "SectorLabel"
+	label.text = "%s\n%s" % [title, subtitle]
+	label.font_size = 24
+	label.modulate = Color(0.90, 0.89, 0.82)
+	label.outline_size = 5
+	label.outline_modulate = Color(0.02, 0.03, 0.04, 0.98)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.position = Vector3(0.0, 1.78, -0.075)
+	sign.add_child(label)
 
 func _setup_sector_floors(root: Node3D) -> void:
 	var floor_group := Node3D.new()
