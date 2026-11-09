@@ -18,8 +18,10 @@ func _ready() -> void:
 func take_damage(amount: float, source: Node = null) -> void:
 	if _destroyed or amount <= 0.0:
 		return
-	var applied_damage := amount
 	var arena := get_tree().get_first_node_in_group("brawl_arena")
+	if arena == null or not arena.is_team_turret_destroyed(team_id):
+		return
+	var applied_damage := amount
 	if arena == null or not arena.has_attacking_minion_support(self, source, minion_support_radius):
 		applied_damage *= unsupported_damage_multiplier
 	current_health = maxf(0.0, current_health - applied_damage)
@@ -32,6 +34,9 @@ func take_damage(amount: float, source: Node = null) -> void:
 		_destroyed = true
 		remove_from_group("brawl_units")
 		visible = false
+		var collision := get_node_or_null("StructureCollision/CollisionShape3D") as CollisionShape3D
+		if collision != null:
+			collision.set_deferred("disabled", true)
 		if arena != null and arena.has_method("notify_core_destroyed"):
 			arena.notify_core_destroyed(self, source)
 

@@ -85,7 +85,7 @@ func take_damage(amount: float, source: Node = null) -> void:
 		visible = false
 		set_process(false)
 		remove_from_group("brawl_units")
-		var collision := get_node_or_null("CollisionShape3D")
+		var collision := get_node_or_null("StructureCollision/CollisionShape3D") as CollisionShape3D
 		if collision != null:
 			collision.set_deferred("disabled", true)
 		if arena != null and arena.has_method("notify_turret_destroyed"):

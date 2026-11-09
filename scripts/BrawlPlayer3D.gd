@@ -14,6 +14,9 @@ func _physics_process(_delta: float) -> void:
 	move_from_input(move_input)
 
 func move_from_input(input_direction: Vector2) -> void:
+	if _defeated:
+		velocity = Vector3.ZERO
+		return
 	var direction := Vector3(input_direction.x, 0.0, input_direction.y)
 	if direction.length_squared() > 1.0:
 		direction = direction.normalized()
@@ -29,6 +32,8 @@ func move_from_input(input_direction: Vector2) -> void:
 		mesh_root.rotation.y = atan2(-direction.x, -direction.z)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _defeated:
+		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
 		attack_nearest_enemy()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_Q:
@@ -37,7 +42,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		use_ability("E")
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
 		use_ability("R")
-	elif event is InputEventKey and event.pressed and not event.echo:
+	elif allow_hero_selection and event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_1:
 				select_hero("garrick_cole")

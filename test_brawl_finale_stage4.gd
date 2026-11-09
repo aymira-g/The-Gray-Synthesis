@@ -30,11 +30,18 @@ func _run_tests() -> void:
 	var expected_player_team := "blue" if player_faction == "ecology" else "red"
 	_check(String(timeout_player.get("team_id")) == expected_player_team, "Player hero joins its actual faction")
 	_check(String(timeout_player.get("hero_id")) == String(timeout_arena.call("_hero_id_for_resident", timeout_match.player_node)), "Player keeps the resident's mapped combat kit")
+	_check(_drafted_identities_match(timeout_match, timeout_arena), "All ten drafted hero identities remain visible in their brawl teams")
 	_check(float(timeout_arena.blue_core.get("max_health")) > 1800.0, "Faction preparation improves its core health")
+	var world_root: Node = timeout_arena.get_node("Arena")
+	var west_wall := world_root.get_node_or_null("WestBoundaryCollision")
+	var east_wall := world_root.get_node_or_null("EastBoundaryCollision")
+	_check(west_wall is StaticBody3D and east_wall is StaticBody3D and west_wall.get_child(0) is CollisionShape3D and east_wall.get_child(0) is CollisionShape3D, "Arena has collidable east and west end walls")
 
 	var blue_hero := _first_team_hero(timeout_arena, "blue")
 	var red_hero := _first_team_hero(timeout_arena, "red")
 	var red_turret: Node3D = timeout_arena.get_node("Arena/RedTurret")
+	var blue_turret: Node3D = timeout_arena.get_node("Arena/BlueTurret")
+	_check(red_turret.get_node_or_null("StructureCollision/CollisionShape3D") != null and timeout_arena.blue_core.get_node_or_null("StructureCollision/CollisionShape3D") != null, "Turrets and cores have functional structure collision shapes")
 	blue_hero.global_position = red_turret.global_position + Vector3(-2.0, 0.0, 0.0)
 	blue_hero.set("attack_cooldown_remaining", 0.0)
 	_check(bool(blue_hero.call("can_attack_target", red_turret)), "Heroes can basic-attack enemy turrets")
@@ -55,14 +62,46 @@ func _run_tests() -> void:
 	var blue_core: Node3D = timeout_arena.blue_core
 	var health_before := float(blue_core.get("current_health"))
 	blue_core.call("take_damage", 100.0, red_hero)
+	_check(is_equal_approx(health_before, float(blue_core.get("current_health"))), "Core is invulnerable while its defending turret stands")
+	support_minion.set("team_id", "red")
+	support_minion.position = blue_turret.position + Vector3(3.0, 0.0, 0.0)
+	blue_turret.call("take_damage", 10000.0, red_hero)
+	_check(timeout_arena.call("is_team_turret_destroyed", "blue"), "Destroying a turret unlocks its team's core")
+	for unit in timeout_arena.get_tree().get_nodes_in_group("brawl_units"):
+		if String(unit.get("unit_type")) == "hero" and String(unit.get("team_id")) == "blue":
+			unit.global_position = Vector3(0.0, 0.0, 12.0)
+		elif String(unit.get("unit_type")) == "minion" and String(unit.get("team_id")) == "blue":
+			unit.global_position = Vector3(0.0, 0.0, 12.0)
+	support_minion.position = blue_core.position + Vector3(1.5, 0.0, 0.0)
+	support_minion.set("lane_direction", -1.0)
+	health_before = float(blue_core.get("current_health"))
+	support_minion.set("attack_cooldown_remaining", 0.0)
+	support_minion.call("_physics_process", 0.016)
+	_check(float(blue_core.get("current_health")) < health_before, "Minions advance past the old lane stop and attack an unlocked core")
+	support_minion.position = blue_core.position + Vector3(12.0, 0.0, 0.0)
+	health_before = float(blue_core.get("current_health"))
+	blue_core.call("take_damage", 100.0, red_hero)
 	var unsupported_damage := health_before - float(blue_core.get("current_health"))
 	_check(is_equal_approx(unsupported_damage, 35.0), "Enemy core reduces damage by 65% without a siege minion")
 
-	support_minion.set("team_id", "red")
 	support_minion.position = blue_core.position + Vector3(3.0, 0.0, 0.0)
 	health_before = float(blue_core.get("current_health"))
 	blue_core.call("take_damage", 100.0, red_hero)
 	_check(is_equal_approx(health_before - float(blue_core.get("current_health")), 100.0), "Attacking minion support removes the core damage reduction")
+	timeout_arena.call("_toggle_pause")
+	_check(bool(timeout_arena.get("_paused")) and paused, "Finale pause freezes the active brawl")
+	_check(not timeout_arena.return_to_modes_button.visible, "Integrated finale cannot abandon the Town Match from pause")
+	timeout_arena.call("_return_to_mode_select")
+	_check(timeout_match.game_manager.current_phase == timeout_match.game_manager.Phase.FINALE, "Pause menu cannot discard the active Town Match")
+	timeout_arena.call("_toggle_pause")
+	_check(not paused, "Finale can resume normally from pause")
+	var locked_hero_id := String(timeout_player.get("hero_id"))
+	_check(not bool(timeout_player.call("select_hero", "nyx_calder")), "Direct hero selection is disabled during the actual finale")
+	var swap_event := InputEventKey.new()
+	swap_event.pressed = true
+	swap_event.keycode = KEY_2
+	timeout_player.call("_unhandled_input", swap_event)
+	_check(String(timeout_player.get("hero_id")) == locked_hero_id, "Developer hero-swap hotkeys are ignored during the actual finale")
 
 	var red_core: Node3D = timeout_arena.red_core
 	blue_core.set("current_health", float(blue_core.get("max_health")) * 0.6)
@@ -78,6 +117,7 @@ func _run_tests() -> void:
 	var sudden_death_arena: Node3D = sudden_death_match.brawl_arena
 	var blue_sudden_core: Node3D = sudden_death_arena.blue_core
 	var red_sudden_core: Node3D = sudden_death_arena.red_core
+	sudden_death_arena.get_node("Arena/BlueTurret").set("current_health", 0.0)
 	blue_sudden_core.set("current_health", float(blue_sudden_core.get("max_health")) * 0.5)
 	red_sudden_core.set("current_health", float(red_sudden_core.get("max_health")) * 0.5)
 	sudden_death_arena.call("_resolve_timeout")
@@ -99,14 +139,26 @@ func _run_tests() -> void:
 	siege_minion.set("team_id", "blue")
 	siege_minion.position = destruction_red_core.position + Vector3(-3.0, 0.0, 0.0)
 	destruction_arena.add_child(siege_minion)
+	destruction_arena.get_node("Arena/RedTurret").set("current_health", 0.0)
 	destruction_red_core.call("take_damage", 10000.0, blue_attacker)
 	_check(destruction_manager.current_phase == destruction_manager.Phase.MATCH_OVER, "Destroying the opposing core ends the match")
 	_check(destruction_manager.brawl_winner_faction == "ecology" and destruction_manager.brawl_end_reason == "core_destroyed", "Core destruction reports the correct winner and result")
 	_check(String(destruction_manager.match_ending_title).contains("ENEMY CORE DESTROYED"), "Town result screen explains the core-destruction victory")
 
+	var defeated_match := _make_match(["Ecology", "Ecology", "Technology", "Technology"])
+	await process_frame
+	var defeated_player: Node = defeated_match.brawl_arena.player
+	defeated_player.call("take_damage", float(defeated_player.get("max_health")) * 2.0)
+	var mana_before := float(defeated_player.get("current_mana"))
+	_check(not bool(defeated_player.call("use_ability", "Q")) and is_equal_approx(float(defeated_player.get("current_mana")), mana_before), "Defeated heroes cannot cast abilities")
+	var defeated_hero_id := String(defeated_player.get("hero_id"))
+	defeated_player.call("_unhandled_input", swap_event)
+	_check(String(defeated_player.get("hero_id")) == defeated_hero_id, "Defeated heroes cannot swap combat kits")
+
 	timeout_match.queue_free()
 	sudden_death_match.queue_free()
 	destruction_match.queue_free()
+	defeated_match.queue_free()
 	print("==================================================================")
 	print("RESULTS: %d PASSED, %d FAILED" % [passed, failed])
 	print("==================================================================")
@@ -119,7 +171,9 @@ func _make_match(civilian_votes: Array) -> Node3D:
 	var manager: Node = main.game_manager
 	manager.court_preview_votes.clear()
 	var vote_index := 0
-	for resident in main.residents:
+	for resident_index in range(main.residents.size()):
+		var resident: Node = main.residents[resident_index]
+		resident.set("hero_id", String(C.HERO_ROSTER[resident_index].get("hero_id")))
 		if String(resident.get("secret_role")) != "civilian":
 			continue
 		manager.court_preview_votes.append({
@@ -134,6 +188,25 @@ func _make_match(civilian_votes: Array) -> Node3D:
 	manager.finale_route = C.FINALE_ROUTE_CONFRONTATION
 	manager.set_phase(manager.Phase.FINALE)
 	return main
+
+func _drafted_identities_match(main: Node3D, arena: Node3D) -> bool:
+	var matched := 0
+	for unit in arena.get_tree().get_nodes_in_group("brawl_units"):
+		if not arena.is_ancestor_of(unit) or String(unit.get("unit_type")) != "hero":
+			continue
+		for resident in main.residents:
+			if String(resident.get("resident_name")) != String(unit.get("combatant_name")):
+				continue
+			var expected_name := ""
+			for profile in C.HERO_ROSTER:
+				if String(profile.get("hero_id")) == String(resident.get("hero_id")):
+					expected_name = String(profile.get("name"))
+					break
+			if expected_name.is_empty() or String(unit.get("drafted_hero_name")) != expected_name or String(unit.get("hero_name")) != expected_name:
+				return false
+			matched += 1
+			break
+	return matched == main.residents.size()
 
 func _team_hero_count(arena: Node3D, team: String) -> int:
 	var count := 0

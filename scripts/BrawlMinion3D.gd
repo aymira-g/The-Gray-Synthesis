@@ -27,10 +27,6 @@ func _physics_process(_delta: float) -> void:
 		velocity = Vector3.ZERO
 		move_and_slide()
 		return
-	if (lane_direction > 0.0 and global_position.x >= 25.0) or (lane_direction < 0.0 and global_position.x <= -25.0):
-		velocity = Vector3.ZERO
-		move_and_slide()
-		return
 	var target := _find_nearby_enemy()
 	if target != null:
 		var distance := _planar_distance_to(target)

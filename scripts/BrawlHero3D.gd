@@ -12,8 +12,10 @@ signal hero_changed(hero_name: String, hero_id: String)
 @export var hero_id: String = "garrick_cole"
 @export var is_bot: bool = false
 @export var retreat_health_fraction: float = 0.30
+@export var allow_hero_selection: bool = true
 
 var hero_name: String = ""
+var drafted_hero_name: String = ""
 var combatant_name: String = ""
 var role_name: String = ""
 var move_speed: float = 6.0
@@ -33,7 +35,7 @@ func _ready() -> void:
 
 func _apply_hero_kit(selected_hero_id: String) -> void:
 	var kit: Dictionary = HERO_KITS.get(selected_hero_id, HERO_KITS["garrick_cole"])
-	hero_name = String(kit["name"])
+	hero_name = drafted_hero_name if not drafted_hero_name.is_empty() else String(kit["name"])
 	role_name = String(kit["role"])
 	_base_color = kit["color"]
 	max_health = float(kit["max_health"])
@@ -46,7 +48,7 @@ func _apply_hero_kit(selected_hero_id: String) -> void:
 	mana_regen_per_second = 5.5
 
 func select_hero(selected_hero_id: String) -> bool:
-	if not HERO_KITS.has(selected_hero_id):
+	if _defeated or not allow_hero_selection or not HERO_KITS.has(selected_hero_id):
 		return false
 	var health_fraction := current_health / maxf(max_health, 1.0)
 	var mana_fraction := current_mana / maxf(max_mana, 1.0)
@@ -93,7 +95,7 @@ func take_damage(amount: float, source: Node = null) -> void:
 
 func use_ability(ability: String) -> bool:
 	var key := ability.to_upper()
-	if not HERO_KITS.has(hero_id) or not _ability_cooldowns.has(key) or float(_ability_cooldowns[key]) > 0.0:
+	if _defeated or not HERO_KITS.has(hero_id) or not _ability_cooldowns.has(key) or float(_ability_cooldowns[key]) > 0.0:
 		return false
 	var mana_cost := 18.0 if key != "R" else 32.0
 	if current_mana < mana_cost:
@@ -334,7 +336,10 @@ func _build_hero() -> void:
 	_add_box_visual("TeamStripe", Vector3(0.0, 1.30, 0.23), Vector3(0.54, 0.12, 0.05), team_color, true)
 	var nameplate := Label3D.new()
 	nameplate.name = "HeroNameplate"
-	nameplate.text = "%s  |  %s" % [combatant_name if not combatant_name.is_empty() else hero_name, role_name]
+	if not combatant_name.is_empty() and not drafted_hero_name.is_empty():
+		nameplate.text = "%s  |  %s (%s)" % [combatant_name, drafted_hero_name, role_name]
+	else:
+		nameplate.text = "%s  |  %s" % [combatant_name if not combatant_name.is_empty() else hero_name, role_name]
 	nameplate.position.y = 2.75
 	nameplate.font_size = 20
 	nameplate.outline_size = 4

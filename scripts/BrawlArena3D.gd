@@ -6,6 +6,7 @@ const BrawlHeroScript = preload("res://scripts/BrawlHero3D.gd")
 const BrawlMinionScript = preload("res://scripts/BrawlMinion3D.gd")
 const BrawlTurretScript = preload("res://scripts/BrawlTurret3D.gd")
 const BrawlCoreScript = preload("res://scripts/BrawlCore3D.gd")
+const C = preload("res://scripts/GameConstants.gd")
 const MINION_WAVE_INTERVAL := 12.0
 const MINIONS_PER_WAVE := 3
 const BRAWL_DURATION := 600.0
@@ -118,6 +119,8 @@ func _build_arena() -> void:
 	_add_box(world_root, "RedBasePad", Vector3(26.0, 0.08, 0.0), Vector3(9.0, 0.12, 15.0), Color(0.47, 0.18, 0.20), true)
 	_add_collision_box(world_root, "NorthBoundary", Vector3(0.0, 0.65, -16.0), Vector3(66.0, 1.3, 0.7), Color(0.16, 0.19, 0.23))
 	_add_collision_box(world_root, "SouthBoundary", Vector3(0.0, 0.65, 16.0), Vector3(66.0, 1.3, 0.7), Color(0.16, 0.19, 0.23))
+	_add_collision_box(world_root, "WestBoundary", Vector3(-33.0, 1.1, 0.0), Vector3(0.7, 2.2, 32.0), Color(0.16, 0.19, 0.23))
+	_add_collision_box(world_root, "EastBoundary", Vector3(33.0, 1.1, 0.0), Vector3(0.7, 2.2, 32.0), Color(0.16, 0.19, 0.23))
 
 	_add_collision_box(world_root, "NorthCoverWest", Vector3(-6.0, 0.7, -9.0), Vector3(4.0, 1.4, 1.2), Color(0.31, 0.35, 0.39))
 	_add_collision_box(world_root, "NorthCoverEast", Vector3(7.0, 0.7, -9.0), Vector3(4.0, 1.4, 1.2), Color(0.31, 0.35, 0.39))
@@ -143,6 +146,8 @@ func _spawn_player() -> void:
 	player.set("team_id", _player_team)
 	player.set("hero_id", _hero_id_for_resident(_player_resident) if _is_match_finale else "garrick_cole")
 	player.set("combatant_name", String(_player_resident.get("resident_name")) if _is_match_finale else "")
+	player.set("drafted_hero_name", _drafted_hero_name_for_resident(_player_resident) if _is_match_finale else "")
+	player.set("allow_hero_selection", not _is_match_finale)
 	player.set("damage_multiplier", _damage_multiplier_for_team(_player_team))
 	player.position = Vector3(-22.0 if _player_team == "blue" else 22.0, 0.0, 2.0)
 	add_child(player)
@@ -192,7 +197,9 @@ func _spawn_match_rosters() -> void:
 			bot.set("team_id", team)
 			bot.set("hero_id", _hero_id_for_resident(resident))
 			bot.set("combatant_name", String(resident.get("resident_name")))
+			bot.set("drafted_hero_name", _drafted_hero_name_for_resident(resident))
 			bot.set("is_bot", true)
+			bot.set("allow_hero_selection", false)
 			bot.set("lane_direction", 1.0 if team == "blue" else -1.0)
 			bot.set("damage_multiplier", _damage_multiplier_for_team(team))
 			var lane_offset := float(slot % 5 - 2) * 1.6
@@ -216,6 +223,15 @@ func _hero_id_for_resident(resident: Node) -> String:
 		_:
 			return "garrick_cole"
 
+func _drafted_hero_name_for_resident(resident: Node) -> String:
+	if resident == null:
+		return ""
+	var resident_hero_id := String(resident.get("hero_id"))
+	for profile in C.HERO_ROSTER:
+		if String(profile.get("hero_id", "")) == resident_hero_id:
+			return String(profile.get("name", ""))
+	return ""
+
 func _team_for_faction(faction: String) -> String:
 	return "blue" if faction == "ecology" else "red"
 
@@ -226,6 +242,10 @@ func _damage_multiplier_for_team(team: String) -> float:
 	if not _is_match_finale or _match_manager == null:
 		return 1.0
 	return float(_match_manager.get_archive_objective_speed_mult(_faction_for_team(team)))
+
+func is_team_turret_destroyed(team: String) -> bool:
+	var turret := get_node_or_null("Arena/%sTurret" % team.capitalize())
+	return turret != null and float(turret.get("current_health")) <= 0.0
 
 func _setup_camera() -> void:
 	camera = Camera3D.new()
@@ -362,7 +382,8 @@ func _build_hud() -> void:
 
 	return_to_modes_button = Button.new()
 	return_to_modes_button.name = "ReturnToModeSelectButton"
-	return_to_modes_button.text = "Return to Mode Select"
+	return_to_modes_button.text = "Return to Developer Preview"
+	return_to_modes_button.visible = not _is_match_finale
 	return_to_modes_button.pressed.connect(_return_to_mode_select)
 	pause_content.add_child(return_to_modes_button)
 
@@ -372,6 +393,9 @@ func _toggle_pause() -> void:
 	get_tree().paused = _paused
 
 func _return_to_mode_select() -> void:
+	if _is_match_finale:
+		push_warning("Cannot leave an active Town Match from the brawl pause menu.")
+		return
 	get_tree().paused = false
 	var error := get_tree().change_scene_to_file(MODE_SELECT_PATH)
 	if error != OK:
@@ -623,6 +647,17 @@ func _add_landmark(parent: Node3D, node_name: String, world_position: Vector3, t
 			var prep_value := float(_match_manager.generator_eco_stabilized if team == "blue" else _match_manager.generator_tech_primed)
 			landmark.set("max_health", 1800.0 + prep_value * 2.0 + _match_manager.common_works * 0.25)
 	parent.add_child(landmark)
+	var structure_collision := StaticBody3D.new()
+	structure_collision.name = "StructureCollision"
+	landmark.add_child(structure_collision)
+	var collision := CollisionShape3D.new()
+	collision.name = "CollisionShape3D"
+	var collision_shape := CylinderShape3D.new()
+	collision_shape.radius = 1.0
+	collision_shape.height = 3.2
+	collision.shape = collision_shape
+	collision.position.y = 1.6
+	structure_collision.add_child(collision)
 	_add_cylinder(landmark, "Base", Vector3(0.0, 0.35, 0.0), 1.25, 0.7, Color(0.20, 0.23, 0.27))
 	_add_cylinder(landmark, "Structure", Vector3(0.0, 1.5, 0.0), 0.72, 2.3, tint)
 	_add_sphere(landmark, "Core", Vector3(0.0, 2.9, 0.0), 0.72, tint.lightened(0.25), true)
