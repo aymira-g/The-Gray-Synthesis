@@ -20,6 +20,11 @@ const PLAYER_PALETTE_CATALOG: Array[Dictionary] = [
 	{"id": "salvage", "name": "Salvage Ember", "torso": Color(0.48, 0.28, 0.18), "accent": Color(0.98, 0.61, 0.24)},
 	{"id": "archive", "name": "Archive Signal", "torso": Color(0.30, 0.25, 0.48), "accent": Color(0.72, 0.55, 0.98)}
 ]
+const PLAYER_ACCESSORY_CATALOG: Array[Dictionary] = [
+	{"id": "none", "name": "No Accessory"},
+	{"id": "field_scarf", "name": "Field Scarf"},
+	{"id": "signal_badge", "name": "Signal Badge"}
+]
 
 signal trauma_impact_requested(amount: float, source_pos: Vector3)
 signal task_completed
@@ -48,6 +53,7 @@ var hero_passive_desc: String = "+20% task channel speed on Water Pump and Gener
 var hero_torso_color: Color = Color(0.28, 0.44, 0.56)
 var hero_accent_color: Color = Color(0.35, 0.85, 1.0)
 var player_palette_id: String = "standard"
+var player_accessory_id: String = "none"
 var hero_lore: String = "Designed the town's dual-stage intake manifold before the gray silt encroached."
 var _hero_default_job: String = "Pump Technician"
 
@@ -118,6 +124,7 @@ var right_leg_pivot: Node3D
 var left_arm_pivot: Node3D
 var right_arm_pivot: Node3D
 var job_accessory_root: Node3D
+var player_cosmetic_accessory_root: Node3D
 var walk_cycle: float = 0.0
 var idle_phase: float = 0.0
 var sim_time: float = 0.0
@@ -249,6 +256,10 @@ func _setup_visuals() -> void:
 	job_accessory_root = Node3D.new()
 	job_accessory_root.name = "JobAccessories"
 	mesh_root.add_child(job_accessory_root)
+
+	player_cosmetic_accessory_root = Node3D.new()
+	player_cosmetic_accessory_root.name = "PlayerCosmeticAccessories"
+	mesh_root.add_child(player_cosmetic_accessory_root)
 
 	# 3. Head & Headlamp
 	var head_mesh := SphereMesh.new()
@@ -777,15 +788,31 @@ func set_hero_by_index(idx: int) -> void:
 func get_player_palette_options() -> Array[Dictionary]:
 	return PLAYER_PALETTE_CATALOG.duplicate(true)
 
+func get_player_accessory_options() -> Array[Dictionary]:
+	return PLAYER_ACCESSORY_CATALOG.duplicate(true)
+
 func apply_player_palette(palette_id: String) -> bool:
 	if not is_player:
 		return false
-	for palette in PLAYER_PALETTE_CATALOG:
-		if palette["id"] == palette_id:
-			player_palette_id = palette_id
-			_apply_player_palette_materials()
-			return true
+	if not _find_player_palette(palette_id).is_empty():
+		player_palette_id = palette_id
+		_apply_player_palette_materials()
+		return true
 	return false
+
+func apply_player_accessory(accessory_id: String) -> bool:
+	if not is_player or not _is_player_accessory_valid(accessory_id):
+		return false
+	player_accessory_id = accessory_id
+	_apply_player_accessory_to_root(mesh_root, accessory_id, _get_player_palette_accent(player_palette_id))
+	return true
+
+func apply_cosmetic_preview(visual_root: Node3D, palette_id: String, accessory_id: String) -> bool:
+	if visual_root == null or _find_player_palette(palette_id).is_empty() or not _is_player_accessory_valid(accessory_id):
+		return false
+	_apply_palette_to_visual_root(visual_root, palette_id)
+	_apply_player_accessory_to_root(visual_root, accessory_id, _get_player_palette_accent(palette_id))
+	return true
 
 func refresh_identity_labels() -> void:
 	if torso_node != null:
@@ -821,23 +848,81 @@ func refresh_identity_labels() -> void:
 func _apply_player_palette_materials() -> void:
 	if not is_player:
 		return
-	var selected_palette: Dictionary = {}
-	for palette in PLAYER_PALETTE_CATALOG:
-		if palette["id"] == player_palette_id:
-			selected_palette = palette
-			break
-	if selected_palette.is_empty():
+	_apply_palette_to_visual_root(mesh_root, player_palette_id)
+	_apply_player_accessory_to_root(mesh_root, player_accessory_id, _get_player_palette_accent(player_palette_id))
+
+func _apply_palette_to_visual_root(visual_root: Node3D, palette_id: String) -> void:
+	var palette := _find_player_palette(palette_id)
+	if palette.is_empty():
 		return
-	if torso_node != null:
+	var torso: MeshInstance3D = visual_root.get_node_or_null("Torso")
+	if torso != null:
 		var torso_material := StandardMaterial3D.new()
-		torso_material.albedo_color = selected_palette["torso"]
+		torso_material.albedo_color = palette["torso"]
 		torso_material.roughness = 0.75
-		torso_node.material_override = torso_material
-	if hero_trim_node != null:
+		torso.material_override = torso_material
+	var trim: MeshInstance3D = visual_root.get_node_or_null("Torso/HeroCollarTrim")
+	if trim != null:
 		var trim_material := StandardMaterial3D.new()
-		trim_material.albedo_color = selected_palette.get("accent", hero_accent_color)
+		trim_material.albedo_color = palette.get("accent", hero_accent_color)
 		trim_material.roughness = 0.55
-		hero_trim_node.material_override = trim_material
+		trim.material_override = trim_material
+
+func _apply_player_accessory_to_root(visual_root: Node3D, accessory_id: String, accent: Color) -> void:
+	var accessory_root := visual_root.get_node_or_null("PlayerCosmeticAccessories") as Node3D
+	if accessory_root == null:
+		accessory_root = Node3D.new()
+		accessory_root.name = "PlayerCosmeticAccessories"
+		visual_root.add_child(accessory_root)
+	for child in accessory_root.get_children():
+		child.free()
+
+	match accessory_id:
+		"field_scarf":
+			var scarf := MeshInstance3D.new()
+			scarf.name = "FieldScarf"
+			var scarf_mesh := BoxMesh.new()
+			scarf_mesh.size = Vector3(0.16, 0.48, 0.06)
+			scarf.mesh = scarf_mesh
+			var scarf_material := StandardMaterial3D.new()
+			scarf_material.albedo_color = accent
+			scarf_material.roughness = 0.88
+			scarf.material_override = scarf_material
+			scarf.position = Vector3(0.12, 1.08, 0.205)
+			scarf.rotation_degrees.z = -18.0
+			accessory_root.add_child(scarf)
+		"signal_badge":
+			var badge := MeshInstance3D.new()
+			badge.name = "SignalBadge"
+			var badge_mesh := CylinderMesh.new()
+			badge_mesh.top_radius = 0.105
+			badge_mesh.bottom_radius = 0.105
+			badge_mesh.height = 0.035
+			badge.mesh = badge_mesh
+			var badge_material := StandardMaterial3D.new()
+			badge_material.albedo_color = accent
+			badge_material.metallic = 0.72
+			badge_material.roughness = 0.38
+			badge.material_override = badge_material
+			badge.position = Vector3(-0.21, 1.34, 0.205)
+			badge.rotation_degrees.x = 90.0
+			accessory_root.add_child(badge)
+
+func _find_player_palette(palette_id: String) -> Dictionary:
+	for palette in PLAYER_PALETTE_CATALOG:
+		if palette["id"] == palette_id:
+			return palette
+	return {}
+
+func _get_player_palette_accent(palette_id: String) -> Color:
+	var palette := _find_player_palette(palette_id)
+	return palette.get("accent", hero_accent_color)
+
+func _is_player_accessory_valid(accessory_id: String) -> bool:
+	for accessory in PLAYER_ACCESSORY_CATALOG:
+		if accessory["id"] == accessory_id:
+			return true
+	return false
 
 func _setup_player_indicators() -> void:
 	# 1. Ground Ring (Glowing Cyan Torus under player's feet)
