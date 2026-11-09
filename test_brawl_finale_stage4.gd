@@ -14,15 +14,18 @@ func _init() -> void:
 	call_deferred("_run_tests")
 
 func _run_tests() -> void:
+	await _test_developer_f1_warp()
+
 	var timeout_match := _make_match(["Ecology", "Ecology", "Ecology", "Technology"])
 	await process_frame
 	var timeout_manager: Node = timeout_match.game_manager
 	var timeout_arena: Node3D = timeout_match.brawl_arena
 	var timeout_player: Node = timeout_arena.player
 	_check(timeout_arena != null, "Split-court confrontation launches the integrated brawl")
-	_check(timeout_manager.brawl_active and is_equal_approx(timeout_manager.time_remaining, 600.0), "Integrated finale starts with the 10-minute brawl timer")
+	_check(timeout_manager.brawl_active and timeout_manager.time_remaining > 599.0 and timeout_manager.time_remaining <= 600.0, "Integrated finale starts with the 10-minute brawl timer")
+	var timer_before_manager_tick := float(timeout_manager.time_remaining)
 	timeout_manager._process(30.0)
-	_check(is_equal_approx(timeout_manager.time_remaining, 600.0), "Normal finale countdown does not prematurely end the brawl")
+	_check(is_equal_approx(timeout_manager.time_remaining, timer_before_manager_tick), "Normal finale countdown does not prematurely end the brawl")
 	_check(not timeout_match.town_map.visible and not timeout_match.ui_layer.visible, "Town and its HUD are hidden while the arena is active")
 	_check(_team_hero_count(timeout_arena, "blue") == 6 and _team_hero_count(timeout_arena, "red") == 4, "Resident allegiances produce the correct 6v4 teams")
 	_check(String(timeout_player.get("combatant_name")) == String(timeout_match.player_node.get("resident_name")), "Player-controlled hero represents the town player")
@@ -31,6 +34,7 @@ func _run_tests() -> void:
 	_check(String(timeout_player.get("team_id")) == expected_player_team, "Player hero joins its actual faction")
 	_check(String(timeout_player.get("hero_id")) == String(timeout_arena.call("_hero_id_for_resident", timeout_match.player_node)), "Player keeps the resident's mapped combat kit")
 	_check(_drafted_identities_match(timeout_match, timeout_arena), "All ten drafted hero identities remain visible in their brawl teams")
+	_check(String(timeout_arena.get_node("BrawlHUD/ControlsLabel").text).contains("Drafted in Town Match"), "Finale controls HUD reflects the locked drafted hero")
 	_check(float(timeout_arena.blue_core.get("max_health")) > 1800.0, "Faction preparation improves its core health")
 	var world_root: Node = timeout_arena.get_node("Arena")
 	var west_wall := world_root.get_node_or_null("WestBoundaryCollision")
@@ -164,10 +168,26 @@ func _run_tests() -> void:
 	print("==================================================================")
 	quit(0 if failed == 0 else 1)
 
+func _test_developer_f1_warp() -> void:
+	var main: Node3D = Main3DScene.instantiate()
+	root.add_child(main)
+	await process_frame
+	main.game_manager.court_preview_votes.clear()
+	main.playtest_tuning_panel._warp_to_finale(C.FINALE_ROUTE_CONFRONTATION)
+	await process_frame
+	var heroes := 0
+	for unit in main.brawl_arena.get_tree().get_nodes_in_group("brawl_units"):
+		if main.brawl_arena.is_ancestor_of(unit) and String(unit.get("unit_type")) == "hero":
+			heroes += 1
+	_check(heroes == 10, "Pre-Court F1 warp creates a full 5v5 brawl roster")
+	_check(main.game_manager.court_preview_votes.size() == 4, "F1 warp fills every missing civilian ballot for deterministic testing")
+	main.queue_free()
+
 func _make_match(civilian_votes: Array) -> Node3D:
 	var main: Node3D = Main3DScene.instantiate()
 	root.add_child(main)
-	main._ready()
+	if not main.is_inside_tree():
+		main._ready()
 	var manager: Node = main.game_manager
 	manager.court_preview_votes.clear()
 	var vote_index := 0

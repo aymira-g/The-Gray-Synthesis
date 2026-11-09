@@ -71,8 +71,12 @@ func _run_tests() -> void:
 	health_before = nyx_target.get("current_health")
 	assert_test.call(nyx.use_ability("Q"), "Nyx Q ranged shot activates")
 	assert_test.call(nyx_target.get("current_health") < health_before, "Nyx Q reaches a distant target")
+	nyx.global_position = Vector3(31.5, 0.0, -4.0)
+	nyx.set("lane_direction", -1.0)
 	var nyx_position: Vector3 = nyx.global_position
 	assert_test.call(nyx.use_ability("E") and nyx.global_position != nyx_position, "Nyx E performs an evasive dash")
+	assert_test.call(nyx.global_position.x <= 32.0, "Nyx dash clamps to the arena boundary")
+	nyx.global_position = Vector3(-4.0, 0.0, -4.0)
 	var volley_target := _spawn_test_combatant(arena, "NyxVolleyTarget", "red", Vector3(2.0, 0.0, -2.0))
 	health_before = volley_target.get("current_health")
 	assert_test.call(nyx.use_ability("R"), "Nyx R volley activates")

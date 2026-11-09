@@ -6,7 +6,7 @@ extends PanelContainer
 # Comprehensive developer and playtesting dashboard for Milestone 8:
 # - Match Clock & Engine Speedwarp (0.5x, 1x, 2x, 5x, Pause, +/-30s, Set 10s)
 # - Phase Navigation / Warp (Briefing, Open Town, First Council, Escalation, Court,
-#   Finale Overdrive, Finale Peace, Match Over)
+#   Finale Brawl, Finale Peace, Match Over)
 # - Live Crisis & Resource Mutations (Water, Stability, Scrap, Common Works, Tug Meter, Drain Multiplier)
 # - Resident & Role Inspector (Zero-guessing view of all 10 roles, kits, AI states, and teleportation)
 # - Bedrock Alcove & Archive Secrecy Controls (Reveal active alcove, Teleport, Force unseal)
@@ -272,7 +272,7 @@ func _build_phase_tab() -> void:
 	_add_phase_btn(phase_grid, "3. First Council", func(): _warp_to_phase(3))
 	_add_phase_btn(phase_grid, "4. Escalation", func(): _warp_to_phase(4))
 	_add_phase_btn(phase_grid, "5. Civilian Court", func(): _warp_to_phase(5))
-	_add_phase_btn(phase_grid, "6. Finale: Overdrive", func(): _warp_to_finale(C.FINALE_ROUTE_CONFRONTATION))
+	_add_phase_btn(phase_grid, "6. Finale: Brawl", func(): _warp_to_finale(C.FINALE_ROUTE_CONFRONTATION))
 	_add_phase_btn(phase_grid, "7. Finale: Peace", func(): _warp_to_finale(C.FINALE_ROUTE_PEACE))
 	_add_phase_btn(phase_grid, "8. Match Over", func(): _warp_to_phase(7))
 
@@ -307,8 +307,44 @@ func _warp_to_finale(route: String) -> void:
 	if game_manager == null:
 		return
 	game_manager.finale_route = route
+	if route == C.FINALE_ROUTE_CONFRONTATION:
+		_complete_unvoted_court_ballots_for_test_warp()
 	game_manager.set_phase(game_manager.Phase.FINALE)
 	_show_popup_feedback("Warped to Finale (%s)" % route.capitalize())
+
+func _complete_unvoted_court_ballots_for_test_warp() -> void:
+	var ecology_votes := 0
+	var technology_votes := 0
+	var recorded_names: Dictionary = {}
+	for ballot in game_manager.court_preview_votes:
+		var voter_name := String(ballot.get("name", ""))
+		if not voter_name.is_empty():
+			recorded_names[voter_name] = true
+		match String(ballot.get("vote", "")):
+			"Ecology":
+				ecology_votes += 1
+			"Technology":
+				technology_votes += 1
+
+	for resident in all_residents:
+		if resident == null or String(resident.get("secret_role")) != "civilian":
+			continue
+		var resident_name := String(resident.get("resident_name"))
+		if recorded_names.has(resident_name):
+			continue
+		var vote := "Ecology"
+		if ecology_votes >= 2 or (technology_votes < 2 and technology_votes < ecology_votes):
+			vote = "Technology"
+		game_manager.court_preview_votes.append({
+			"name": resident_name,
+			"job": String(resident.get("civic_job")),
+			"vote": vote
+		})
+		recorded_names[resident_name] = true
+		if vote == "Ecology":
+			ecology_votes += 1
+		else:
+			technology_votes += 1
 
 # ==============================================================================
 # TAB 2: CRISIS & RESOURCE CONTROLS

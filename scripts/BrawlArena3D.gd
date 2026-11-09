@@ -291,7 +291,7 @@ func _build_hud() -> void:
 
 	var controls := Label.new()
 	controls.name = "ControlsLabel"
-	controls.text = "Move: WASD / Arrows    |    Attack: Space / Left Click    |    Q / E / R: Abilities    |    1-4: Select Hero"
+	controls.text = "Move: WASD / Arrows    |    Attack: Space / Left Click    |    Q / E / R: Abilities    |    Hero: Drafted in Town Match" if _is_match_finale else "Move: WASD / Arrows    |    Attack: Space / Left Click    |    Q / E / R: Abilities    |    1-4: Select Hero"
 	controls.position = Vector2(24.0, 54.0)
 	controls.add_theme_font_size_override("font_size", 14)
 	controls.modulate = Color(0.72, 0.82, 0.94)

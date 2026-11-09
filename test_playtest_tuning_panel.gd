@@ -114,9 +114,19 @@ func _init() -> void:
 	assert_test.call(gm.current_phase == gm.Phase.COURT, "Warp to Civilian Court transitioned phase to COURT")
 	assert_test.call(gm.court_ceremony_active == true, "Civilian court ceremony active after court warp")
 
+	gm.court_preview_votes.clear()
 	panel._warp_to_finale(C.FINALE_ROUTE_CONFRONTATION)
 	assert_test.call(gm.current_phase == gm.Phase.FINALE, "Warp to Finale Confrontation transitioned phase to FINALE")
 	assert_test.call(gm.finale_route == C.FINALE_ROUTE_CONFRONTATION, "Finale route set to CONFRONTATION")
+	var eco_dev_votes := 0
+	var tech_dev_votes := 0
+	for ballot in gm.court_preview_votes:
+		if String(ballot.get("vote")) == "Ecology":
+			eco_dev_votes += 1
+		elif String(ballot.get("vote")) == "Technology":
+			tech_dev_votes += 1
+	assert_test.call(gm.court_preview_votes.size() == 4 and eco_dev_votes == 2 and tech_dev_votes == 2, "Pre-Court F1 brawl warp assigns unvoted civilians to a balanced 2-2 split")
+	assert_test.call(main.brawl_arena != null, "F1 confrontation warp opens the integrated brawl")
 
 	panel._warp_to_finale(C.FINALE_ROUTE_PEACE)
 	assert_test.call(gm.current_phase == gm.Phase.FINALE, "Warp to Finale Peace transitioned phase to FINALE")

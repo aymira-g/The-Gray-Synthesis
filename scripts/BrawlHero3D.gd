@@ -217,7 +217,7 @@ func _use_nyx_ability(ability: String) -> void:
 			if target != null:
 				_deal_damage(target, attack_damage * 1.8)
 		"E":
-			global_position += Vector3(-lane_direction * 3.0, 0.0, 0.0)
+			global_position.x = clampf(global_position.x - lane_direction * 3.0, -32.0, 32.0)
 			velocity = Vector3.ZERO
 		"R":
 			for target in _get_enemies_in_radius(14.0):
