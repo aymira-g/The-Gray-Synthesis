@@ -551,7 +551,7 @@ Mouse Wheel / [Z]: Zoom Camera In / Out
 	settings_menu = SettingsMenuClass.new()
 	settings_menu.name = "SettingsMenu3D"
 	ui_layer.add_child(settings_menu)
-	settings_menu.setup(game_manager, audio_manager, self)
+	settings_menu.setup(game_manager, audio_manager, self, player_node)
 
 	# 6.9 Pre-Match 10-Hero Selection & Matchmaking Lobby [Tab]
 	hero_draft_lobby = HeroDraftLobbyClass.new()

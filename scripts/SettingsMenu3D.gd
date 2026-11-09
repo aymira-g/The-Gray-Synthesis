@@ -10,6 +10,7 @@ extends PanelContainer
 #   * SFX & Footsteps Volume (0% - 100%)
 #   * Sector Ambience Volume (0% - 100%)
 #   * Music & Ceremonial Stingers Volume (0% - 100%)
+# - Player-only outfit palette selection saved locally
 # - Quick audio actions:
 #   * Audio cue test tone preview
 #   * Global mute / unmute toggle
@@ -22,6 +23,8 @@ extends PanelContainer
 var game_manager: Node
 var audio_manager: Node
 var main_3d: Node3D
+var player_node: Node
+var cosmetic_config_path: String = "user://player_cosmetics.cfg"
 
 # UI Nodes
 var title_label: Label
@@ -40,6 +43,7 @@ var ambient_val_label: Label
 
 var music_slider: HSlider
 var music_val_label: Label
+var palette_selector: OptionButton
 
 # Action Buttons
 var test_sound_btn: Button
@@ -52,12 +56,12 @@ var _is_setup: bool = false
 
 func _init() -> void:
 	visible = false
-	custom_minimum_size = Vector2(620, 600)
+	custom_minimum_size = Vector2(620, 660)
 	set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	offset_left = -310.0
-	offset_top = -300.0
+	offset_top = -330.0
 	offset_right = 310.0
-	offset_bottom = 300.0
+	offset_bottom = 330.0
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.07, 0.10, 0.14, 0.97)
@@ -72,13 +76,15 @@ func _init() -> void:
 	style.corner_radius_bottom_right = 8
 	add_theme_stylebox_override("panel", style)
 
-func setup(gm: Node, audio_mgr: Node, m3d: Node3D = null) -> void:
+func setup(gm: Node, audio_mgr: Node, m3d: Node3D = null, player: Node = null) -> void:
 	game_manager = gm
 	audio_manager = audio_mgr
 	main_3d = m3d
+	player_node = player
 	if not _is_setup:
 		_build_ui()
 		_is_setup = true
+	_load_player_palette()
 	_refresh_display()
 
 func _build_ui() -> void:
@@ -121,6 +127,39 @@ func _build_ui() -> void:
 
 	var sep1 := HSeparator.new()
 	main_vbox.add_child(sep1)
+
+	var appearance_header := Label.new()
+	appearance_header.text = "PLAYER APPEARANCE"
+	appearance_header.add_theme_font_size_override("font_size", 13)
+	appearance_header.modulate = Color(0.55, 0.85, 0.95)
+	main_vbox.add_child(appearance_header)
+
+	var palette_row := HBoxContainer.new()
+	palette_row.add_theme_constant_override("separation", 12)
+	main_vbox.add_child(palette_row)
+
+	var palette_label := Label.new()
+	palette_label.text = "Player Outfit Palette"
+	palette_label.custom_minimum_size = Vector2(160, 0)
+	palette_label.add_theme_font_size_override("font_size", 12)
+	palette_label.modulate = Color(0.88, 0.92, 0.98)
+	palette_row.add_child(palette_label)
+
+	palette_selector = OptionButton.new()
+	palette_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	palette_selector.focus_mode = Control.FOCUS_NONE
+	if player_node != null and player_node.has_method("get_player_palette_options"):
+		var palette_options: Array = player_node.call("get_player_palette_options")
+		for palette in palette_options:
+			palette_selector.add_item(String(palette["name"]))
+			palette_selector.set_item_metadata(palette_selector.item_count - 1, String(palette["id"]))
+	else:
+		palette_selector.disabled = true
+	palette_selector.item_selected.connect(_on_palette_selected)
+	palette_row.add_child(palette_selector)
+
+	var sep2 := HSeparator.new()
+	main_vbox.add_child(sep2)
 
 	# 2. Audio Mixer Controls
 	var mixer_header := Label.new()
@@ -184,8 +223,8 @@ func _build_ui() -> void:
 	reset_defaults_btn.pressed.connect(_on_reset_defaults_pressed)
 	actions_hbox.add_child(reset_defaults_btn)
 
-	var sep2 := HSeparator.new()
-	main_vbox.add_child(sep2)
+	var sep3 := HSeparator.new()
+	main_vbox.add_child(sep3)
 
 	# 3. Sector Audio & Atmospheric Guide
 	var guide_panel := PanelContainer.new()
@@ -334,6 +373,56 @@ func _refresh_display() -> void:
 		mute_toggle_btn.modulate = Color(1.0, 0.6, 0.6) if is_muted else Color(1.0, 1.0, 1.0)
 
 	_is_updating_ui = false
+
+func set_player_palette(palette_id: String, persist: bool = true) -> bool:
+	if player_node == null or not player_node.has_method("apply_player_palette"):
+		push_error("Cannot apply player palette: no compatible player is configured.")
+		return false
+	var applied: bool = bool(player_node.call("apply_player_palette", palette_id))
+	if not applied:
+		push_warning("Ignoring unknown player palette '%s'." % palette_id)
+		return false
+	_sync_palette_selector(palette_id)
+	if persist:
+		_save_player_palette(palette_id)
+	return true
+
+func _on_palette_selected(index: int) -> void:
+	if _is_updating_ui or palette_selector == null or index < 0:
+		return
+	var palette_id: String = String(palette_selector.get_item_metadata(index))
+	set_player_palette(palette_id)
+
+func _sync_palette_selector(palette_id: String) -> void:
+	if palette_selector == null:
+		return
+	for index in range(palette_selector.item_count):
+		if String(palette_selector.get_item_metadata(index)) == palette_id:
+			palette_selector.select(index)
+			return
+
+func _load_player_palette() -> void:
+	if player_node == null or not player_node.has_method("apply_player_palette"):
+		return
+	var config := ConfigFile.new()
+	var error := config.load(cosmetic_config_path)
+	if error != OK and error != ERR_FILE_NOT_FOUND:
+		push_error("Could not load player cosmetics '%s': %s" % [cosmetic_config_path, error_string(error)])
+		return
+	var palette_id: String = String(config.get_value("cosmetics", "player_palette", "standard")) if error == OK else "standard"
+	if not set_player_palette(palette_id, false):
+		set_player_palette("standard", false)
+
+func _save_player_palette(palette_id: String) -> void:
+	var config := ConfigFile.new()
+	var error := config.load(cosmetic_config_path)
+	if error != OK and error != ERR_FILE_NOT_FOUND:
+		push_error("Could not load player cosmetics '%s' before saving: %s" % [cosmetic_config_path, error_string(error)])
+		return
+	config.set_value("cosmetics", "player_palette", palette_id)
+	error = config.save(cosmetic_config_path)
+	if error != OK:
+		push_error("Could not save player cosmetics '%s': %s" % [cosmetic_config_path, error_string(error)])
 
 func set_master_slider_value(val: float) -> void:
 	if master_slider != null:

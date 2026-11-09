@@ -14,6 +14,12 @@ extends CharacterBody3D
 # ==============================================================================
 
 const C = preload("res://scripts/GameConstants.gd")
+const PLAYER_PALETTE_CATALOG: Array[Dictionary] = [
+	{"id": "standard", "name": "Civic Teal", "torso": Color(0.24, 0.45, 0.55)},
+	{"id": "verdant", "name": "Greenhouse Verdant", "torso": Color(0.18, 0.42, 0.29), "accent": Color(0.53, 0.90, 0.45)},
+	{"id": "salvage", "name": "Salvage Ember", "torso": Color(0.48, 0.28, 0.18), "accent": Color(0.98, 0.61, 0.24)},
+	{"id": "archive", "name": "Archive Signal", "torso": Color(0.30, 0.25, 0.48), "accent": Color(0.72, 0.55, 0.98)}
+]
 
 signal trauma_impact_requested(amount: float, source_pos: Vector3)
 signal task_completed
@@ -41,6 +47,7 @@ var hero_passive_name: String = "Hydro-Mastery"
 var hero_passive_desc: String = "+20% task channel speed on Water Pump and Generator stations."
 var hero_torso_color: Color = Color(0.28, 0.44, 0.56)
 var hero_accent_color: Color = Color(0.35, 0.85, 1.0)
+var player_palette_id: String = "standard"
 var hero_lore: String = "Designed the town's dual-stage intake manifold before the gray silt encroached."
 var _hero_default_job: String = "Pump Technician"
 
@@ -767,6 +774,19 @@ func set_hero_by_id(h_id: String) -> void:
 func set_hero_by_index(idx: int) -> void:
 	apply_hero_profile(C.get_hero_by_index(idx))
 
+func get_player_palette_options() -> Array[Dictionary]:
+	return PLAYER_PALETTE_CATALOG.duplicate(true)
+
+func apply_player_palette(palette_id: String) -> bool:
+	if not is_player:
+		return false
+	for palette in PLAYER_PALETTE_CATALOG:
+		if palette["id"] == palette_id:
+			player_palette_id = palette_id
+			_apply_player_palette_materials()
+			return true
+	return false
+
 func refresh_identity_labels() -> void:
 	if torso_node != null:
 		var t_mat := StandardMaterial3D.new()
@@ -796,6 +816,28 @@ func refresh_identity_labels() -> void:
 			name_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.95)
 	_setup_civic_tool()
 	_setup_civic_accessories()
+	_apply_player_palette_materials()
+
+func _apply_player_palette_materials() -> void:
+	if not is_player:
+		return
+	var selected_palette: Dictionary = {}
+	for palette in PLAYER_PALETTE_CATALOG:
+		if palette["id"] == player_palette_id:
+			selected_palette = palette
+			break
+	if selected_palette.is_empty():
+		return
+	if torso_node != null:
+		var torso_material := StandardMaterial3D.new()
+		torso_material.albedo_color = selected_palette["torso"]
+		torso_material.roughness = 0.75
+		torso_node.material_override = torso_material
+	if hero_trim_node != null:
+		var trim_material := StandardMaterial3D.new()
+		trim_material.albedo_color = selected_palette.get("accent", hero_accent_color)
+		trim_material.roughness = 0.55
+		hero_trim_node.material_override = trim_material
 
 func _setup_player_indicators() -> void:
 	# 1. Ground Ring (Glowing Cyan Torus under player's feet)
