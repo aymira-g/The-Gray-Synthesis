@@ -5,7 +5,7 @@ extends Node3D
 # ==============================================================================
 # Demonstrates 3D spatial presence, atmospheric dusk lighting, faction-neutral
 # character silhouettes, sequential podium walk-ups, speech bubbles, and live tally.
-# 100% standalone — zero modifications to existing 2D game or test suites.
+# 100% standalone courtroom prototype with no dependency on the main match flow.
 # ==============================================================================
 
 enum CamMode { DIRECTOR, TOP_DOWN, FREE_ORBIT }

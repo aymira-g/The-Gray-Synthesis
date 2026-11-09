@@ -45,7 +45,6 @@ func _init() -> void:
 		project_file.close()
 
 	assert_test.call(project_text.find("run/main_scene=\"res://scenes/Main3D.tscn\"") != -1, "project.godot default main scene is permanently set to res://scenes/Main3D.tscn")
-	assert_test.call(project_text.find("run/main_scene=\"res://scenes/Main.tscn\"") == -1, "project.godot no longer references 2D Main.tscn as main scene")
 
 	var main: Node3D = Main3DScene.instantiate()
 	root.add_child(main)

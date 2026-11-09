@@ -1826,13 +1826,6 @@ func get_region_name_at_3d(pos: Vector3) -> String:
 			return reg["name"]
 	return "Town Corridors"
 
-func get_region_name_at(pos: Variant) -> String:
-	if pos is Vector3:
-		return get_region_name_at_3d(pos)
-	elif pos is Vector2:
-		return get_region_name_at_3d(Vector3(pos.x, 0.0, pos.y))
-	return "Town Square"
-
 func get_region_alert_anchor_at_3d(pos: Vector3) -> Vector3:
 	var p2 := Vector2(pos.x, pos.z)
 	for reg in regions_3d:
@@ -2250,22 +2243,24 @@ func complete_site_inspection(resident: Node, alcove: Dictionary) -> Dictionary:
 
 	var region_name: String = String(alcove.get("region", "Town Corridors"))
 	var is_active: bool = bool(alcove.get("is_active", false)) or (game_manager.archive_active_spawn_id == String(alcove["id"]))
+	var result: Dictionary
 
 	if is_active:
 		if not game_manager.archive_opened:
-			var res_entry: Dictionary = game_manager.open_archive(resident, alcove)
+			result = game_manager.open_archive(resident, alcove)
 			spawn_field_zone_3d("disturbance_ring", alcove["pos"], 2.8, 10.0, 0, region_name)
-			return res_entry
 		else:
 			var stamp: String = game_manager.archive_open_time
 			var trace_txt: String = "Old-World Archive accessed and failsafe key extracted at %s." % stamp
-			return game_manager.add_private_trace(int(resident.resident_id), trace_txt, region_name, stamp)
+			result = game_manager.add_private_trace(int(resident.resident_id), trace_txt, region_name, stamp)
 	else:
 		var stamp: String = game_manager._match_clock_text() if game_manager.has_method("_match_clock_text") else "04:00"
 		var trace_txt: String = "Weathered bedrock alcove inspected at %s. No pre-collapse cache present." % stamp
-		var cache_entry: Dictionary = game_manager.add_private_trace(int(resident.resident_id), trace_txt, region_name, stamp)
+		result = game_manager.add_private_trace(int(resident.resident_id), trace_txt, region_name, stamp)
 		spawn_field_zone_3d("scent_scan", alcove["pos"], 2.2, 5.0, resident.resident_id)
-		return cache_entry
+
+	game_manager.record_inspection_complete_3d(resident, alcove, result, self, all_residents)
+	return result
 
 # ------------------------------------------------------------------------------
 # 10. Frame Process
@@ -2311,4 +2306,3 @@ func _process(delta: float) -> void:
 		turbine_light_node.light_energy = 1.05 + coil_hum * 0.35
 
 	update_escalation_unlocks()
-

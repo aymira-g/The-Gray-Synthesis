@@ -11,13 +11,13 @@ Build a **focused, self-contained 3D gameplay slice** (`res://scenes/Slice3D_Int
 3. **Bot 3D Navigation:** `CharacterBody3D` AI bot autonomously navigating around a 3D obstacle wall to reach `TaskPadB` and execute `"greenhouse"`.
 4. **3D Physics Sightline & Evidence-Parity Witness Detection:**
    - Real 3D physics raycast (`intersect_ray()`) through explicit 3D entry points in `GameManager.gd`.
-   - **Strict Evidence Parity:** `record_observed_sighting_3d()` enforces the exact same rules as the 2D version:
+   - **3D Evidence Rules:** `record_observed_sighting_3d()` enforces phase, distance, sightline, and privacy rules for 3D residents:
      - Active phase and time-window restrictions (Open Town 04:00–03:00 interval, Escalation, Finale).
-     - Distance attenuation with Beacon sightline buffs (`C.WITNESS_RADIUS * buff`).
+     - Distance attenuation with Beacon sightline buffs (`26.0 * buff` in world units).
      - Exclusion of self, null, and incapacitated residents (`observer.is_incapacitated`).
      - Storing observed clues exclusively in each observer's private journal (`_add_private_evidence`).
 
-All existing 2D methods, tests, and milestones remain 100% intact and passing.
+During the initial conversion, the 2D methods and tests were kept intact. The legacy 2D gameplay has since been retired; the active test suite now exercises the 3D implementation.
 
 ---
 
@@ -31,7 +31,7 @@ All existing 2D methods, tests, and milestones remain 100% intact and passing.
 - No mock or invented task names; live match state and event logs update identically to the core game.
 
 ### B. Additive 3D Entry Points in `GameManager.gd` (Strict Evidence Parity)
-- Existing 2D methods (`record_observed_sighting()` and `record_faction_ability()`) remain untouched.
+- The legacy 2D sighting and ability methods were removed after the 3D implementation became the only playable mode.
 - Dedicated 3D methods added to `GameManager.gd`:
   - `record_observed_sighting_3d(subject: Node, location: Vector3, town_map_3d: Node, residents: Array, event_label: String = "was seen") -> void`:
     1. Phase check: In `Phase.OPEN_TOWN`, requires `time_remaining <= 240.0 and time_remaining >= 180.0`. Valid throughout `Phase.ESCALATION` and `Phase.FINALE`.
@@ -51,7 +51,7 @@ All existing 2D methods, tests, and milestones remain 100% intact and passing.
 ## 3. Files Implemented
 
 1. [`scripts/GameManager.gd`](file:///e:/game/windows%20game/The%20Gray%20Synthesis/scripts/GameManager.gd):
-   - Added `record_observed_sighting_3d` and `record_faction_ability_3d` preserving strict 2D evidence parity, broad regional disturbance anchors, hardened zero-leak fallback guardrails, and backward compatibility.
+   - Added `record_observed_sighting_3d` and `record_faction_ability_3d` with phase-aware evidence, broad regional disturbance anchors, and privacy guardrails; these are now the sole gameplay entry points.
 2. [`scripts/PlayerController3D.gd`](file:///e:/game/windows%20game/The%20Gray%20Synthesis/scripts/PlayerController3D.gd):
    - `CharacterBody3D` with isometric movement, sprint/stamina, capsule collision, task channeling via `[E]`, and ability casting via `[C]`.
 3. [`scripts/BotController3D.gd`](file:///e:/game/windows%20game/The%20Gray%20Synthesis/scripts/BotController3D.gd):

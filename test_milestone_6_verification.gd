@@ -2,9 +2,9 @@ extends SceneTree
 
 const C = preload("res://scripts/GameConstants.gd")
 const GM = preload("res://scripts/GameManager.gd")
-const ResClass = preload("res://scripts/Resident.gd")
-const TownMapClass = preload("res://scripts/TownMap.gd")
-const PCClass = preload("res://scripts/PlayerController.gd")
+const ResClass = preload("res://scripts/Resident3D.gd")
+const TownMapClass = preload("res://scripts/TownMap3D.gd")
+const Main3DClass = preload("res://scripts/Main3D.gd")
 
 func _init() -> void:
 	print("==================================================================")
@@ -55,9 +55,11 @@ func _init() -> void:
 	assert_test.call(gm.strategic_decision_active == false, "Strategic window closed after explicit resolve")
 
 	# Test 1b: PlayerController keyboard routing during Strategic Decision in Phase.COURT
-	var pc := PCClass.new()
-	pc.resident = mock_player
-	pc.game_manager = gm
+	var main_3d := Main3DClass.new()
+	main_3d.game_manager = gm
+	main_3d.clock_label = Label.new()
+	main_3d.resource_label = Label.new()
+	main_3d.status_label = Label.new()
 	gm.current_phase = gm.Phase.COURT
 	gm.court_preview_mode = "2-2"
 	gm.start_strategic_decision()
@@ -67,7 +69,7 @@ func _init() -> void:
 	ev1.pressed = true
 	ev1.echo = false
 	ev1.keycode = KEY_1
-	pc._input(ev1)
+	main_3d._unhandled_input(ev1)
 	assert_test.call(gm.player_strategic_choice == C.STRATEGIC_CHOICE_CONFRONTATION, "Key [1] sets strategic choice to Confrontation")
 	assert_test.call(gm.court_preview_mode == "2-2", "Key [1] does NOT trigger Court preview change")
 	assert_test.call(gm.strategic_decision_active == true, "Strategic window remains active after Key [1]")
@@ -77,7 +79,7 @@ func _init() -> void:
 	ev2.pressed = true
 	ev2.echo = false
 	ev2.keycode = KEY_2
-	pc._input(ev2)
+	main_3d._unhandled_input(ev2)
 	assert_test.call(gm.player_strategic_choice == C.STRATEGIC_CHOICE_PEACE, "Key [2] switches strategic choice to Peace")
 	assert_test.call(gm.court_preview_mode == "2-2", "Key [2] does NOT trigger Court preview change")
 
@@ -86,7 +88,7 @@ func _init() -> void:
 	ev_n.pressed = true
 	ev_n.echo = false
 	ev_n.keycode = KEY_N
-	pc._input(ev_n)
+	main_3d._unhandled_input(ev_n)
 	assert_test.call(gm.strategic_decision_resolved == true, "Key [N] resolves strategic decision without restarting")
 	assert_test.call(gm.current_phase == gm.Phase.FINALE, "Resolving strategic decision transitions to Finale")
 
@@ -176,14 +178,15 @@ func _init() -> void:
 	var eco_res := ResClass.new()
 	eco_res.resident_name = "EcoBot"
 	eco_res.secret_role = "ecology"
+	eco_res.hero_passive_id = "none"
 	eco_res.game_manager = gm
 
 	# Helper to simulate 1 second of channeling via _physics_process
 	var test_ch_speed = func(pad_type: String) -> float:
 		eco_res.channel_progress = 0.0
 		eco_res.is_channeling = true
-		eco_res.active_pad = {"task_type": pad_type, "channel_duration": 10.0, "pos": Vector2.ZERO}
-		eco_res.desired_velocity = Vector2.ZERO
+		eco_res.active_pad = {"task_type": pad_type, "channel_duration": 10.0, "position": Vector3.ZERO}
+		eco_res.desired_velocity = Vector3.ZERO
 		eco_res._physics_process(1.0)
 		return eco_res.channel_progress
 
@@ -209,20 +212,20 @@ func _init() -> void:
 	var caster := ResClass.new()
 	caster.resident_name = "Caster"
 	caster.secret_role = "civilian"
-	caster.global_position = Vector2(0, 0)
+	caster.position = Vector3(0, 0, 0)
 
 	var eco_observer := ResClass.new()
 	eco_observer.resident_id = 2
 	eco_observer.resident_name = "EcoObserver"
 	eco_observer.secret_role = "ecology"
-	# Distance 300px: Greater than base 260px WITNESS_RADIUS, but less than 260 * 1.35 = 351px
-	eco_observer.global_position = Vector2(300, 0)
+	# Distance 30m: greater than the 26m base range, but less than 26 * 1.35 = 35.1m.
+	eco_observer.position = Vector3(30, 0, 0)
 
 	var tech_observer := ResClass.new()
 	tech_observer.resident_id = 3
 	tech_observer.resident_name = "TechObserver"
 	tech_observer.secret_role = "technology"
-	tech_observer.global_position = Vector2(300, 0)
+	tech_observer.position = Vector3(30, 0, 0)
 
 	var all_res := [caster, eco_observer, tech_observer]
 	gm.session_residents = all_res
@@ -232,7 +235,7 @@ func _init() -> void:
 	gm.beacon_tech_freq = 0.0
 	assert_test.call(is_equal_approx(gm.get_beacon_sightline_buff("ecology"), 1.0), "Neutral beacon grants 1.0x sightline")
 	assert_test.call(is_equal_approx(gm.get_beacon_sightline_buff("technology"), 1.0), "Neutral beacon grants 1.0x sightline")
-	gm.record_observed_sighting(caster, caster.global_position, town_map, all_res, "was seen")
+	gm.record_observed_sighting_3d(caster, caster.position, town_map, all_res, "was seen")
 	assert_test.call(not gm.evidence_journals.has(2), "Eco observer at 300px cannot see caster without Beacon majority")
 	assert_test.call(not gm.evidence_journals.has(3), "Tech observer at 300px cannot see caster without Beacon majority")
 
@@ -242,7 +245,7 @@ func _init() -> void:
 	assert_test.call(is_equal_approx(gm.get_beacon_sightline_buff("ecology"), 1.35), "Eco beacon majority grants 1.35x (+35%) sightline buff to Ecology")
 	assert_test.call(is_equal_approx(gm.get_beacon_sightline_buff("technology"), 1.0), "Eco beacon majority gives 1.0x sightline to Technology")
 
-	gm.record_observed_sighting(caster, caster.global_position, town_map, all_res, "was seen")
+	gm.record_observed_sighting_3d(caster, caster.position, town_map, all_res, "was seen")
 	assert_test.call(gm.evidence_journals.has(2) and gm.evidence_journals[2]["observed"].size() > 0, "Eco observer at 300px successfully witnesses caster with +35% sightline (351px range)")
 	assert_test.call(not gm.evidence_journals.has(3), "Tech observer at 300px without beacon majority does NOT witness caster")
 
@@ -252,7 +255,7 @@ func _init() -> void:
 	gm.time_remaining = 150.0
 	gm.beacon_eco_freq = 0.0
 	gm.beacon_tech_freq = 50.0 # Tech holds beacon majority in Escalation
-	gm.record_observed_sighting(caster, caster.global_position, town_map, all_res, "accessed Buried Generator")
+	gm.record_observed_sighting_3d(caster, caster.position, town_map, all_res, "accessed Buried Generator")
 	assert_test.call(gm.evidence_journals.has(3) and gm.evidence_journals[3]["observed"].size() > 0, "Tech observer at 300px witnesses action in Escalation with Beacon majority")
 	assert_test.call(not gm.evidence_journals.has(2), "Eco observer at 300px without beacon majority does NOT witness action in Escalation")
 
@@ -262,7 +265,7 @@ func _init() -> void:
 	gm.time_remaining = 90.0
 	gm.beacon_eco_freq = 60.0
 	gm.beacon_tech_freq = 20.0 # Eco holds beacon majority in Finale
-	gm.record_observed_sighting(caster, caster.global_position, town_map, all_res, "channeled Generator Overdrive")
+	gm.record_observed_sighting_3d(caster, caster.position, town_map, all_res, "channeled Generator Overdrive")
 	assert_test.call(gm.evidence_journals.has(2) and gm.evidence_journals[2]["observed"].size() > 0, "Eco observer at 300px witnesses action in Finale with Beacon majority")
 	assert_test.call(not gm.evidence_journals.has(3), "Tech observer at 300px without beacon majority does NOT witness action in Finale")
 

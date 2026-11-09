@@ -561,16 +561,6 @@ func _match_clock_text(seconds_left: float = time_remaining) -> String:
 func get_current_phase_clock_text() -> String:
 	return _match_clock_text()
 
-func record_region_sample(resident: Node, region_name: String) -> void:
-	if current_phase != Phase.OPEN_TOWN or time_remaining > 240.0 or time_remaining < 180.0 or resident == null:
-		return
-	var id: int = int(resident.resident_id)
-	if not region_samples.has(id):
-		region_samples[id] = {}
-	var counts: Dictionary = region_samples[id]
-	counts[region_name] = int(counts.get(region_name, 0)) + 1
-	region_samples[id] = counts
-
 func record_resident_region_sample(resident_id: int, region_name: String) -> void:
 	if current_phase != Phase.OPEN_TOWN or time_remaining > 240.0 or time_remaining < 180.0:
 		return
@@ -579,41 +569,6 @@ func record_resident_region_sample(resident_id: int, region_name: String) -> voi
 	var counts: Dictionary = region_samples[resident_id]
 	counts[region_name] = int(counts.get(region_name, 0)) + 1
 	region_samples[resident_id] = counts
-
-func record_observed_sighting(subject: Node, location: Vector2, town_map: Node2D, residents: Array, event_label: String = "was seen") -> void:
-	if subject == null or town_map == null:
-		return
-	var region_name: String = town_map.get_region_name_at(location)
-	var remaining: float = time_remaining
-
-	# Validate active phase for recording sightings:
-	# 1) Open Town: strictly recorded during the 04:00-03:00 alibi countdown interval
-	# 2) Escalation and Finale: recorded across the phase for tactical site awareness & Beacon sightlines
-	var is_valid_phase: bool = false
-	if current_phase == Phase.OPEN_TOWN:
-		if remaining <= 240.0 and remaining >= 180.0:
-			is_valid_phase = true
-	elif current_phase == Phase.ESCALATION or current_phase == Phase.FINALE:
-		is_valid_phase = true
-
-	if not is_valid_phase:
-		return
-
-	for observer in residents:
-		if observer == null or observer == subject or observer.is_incapacitated:
-			continue
-		var obs_allegiance: String = get_resident_alignment(observer)
-		var base_radius: float = 26.0 if (observer is Node3D) else C.WITNESS_RADIUS
-		var max_dist: float = base_radius * get_beacon_sightline_buff(obs_allegiance)
-		if observer.global_position.distance_to(location) > max_dist:
-			continue
-		if not town_map.has_clear_sightline(observer.global_position, location):
-			continue
-		_add_private_evidence(
-			int(observer.resident_id), C.EVIDENCE_FACT,
-			"%s %s in %s at %s." % [subject.resident_name, event_label, region_name, _match_clock_text()],
-			region_name, _match_clock_text(), subject.resident_name, remaining
-		)
 
 func record_observed_sighting_3d(subject: Node, location: Vector3, town_map_3d: Node, residents: Array, event_label: String = "was seen") -> void:
 	if subject == null or town_map_3d == null:
@@ -638,9 +593,11 @@ func record_observed_sighting_3d(subject: Node, location: Vector3, town_map_3d: 
 		if observer == null or observer == subject or observer.is_incapacitated:
 			continue
 		var obs_allegiance: String = get_resident_alignment(observer)
-		var base_radius: float = 26.0 if (observer is Node3D) else C.WITNESS_RADIUS
+		var base_radius: float = 26.0
 		var max_dist: float = base_radius * get_beacon_sightline_buff(obs_allegiance)
-		var obs_pos: Vector3 = (observer.global_position if observer.is_inside_tree() else observer.position) if (observer is Node3D) else Vector3.ZERO
+		if not observer is Node3D:
+			continue
+		var obs_pos: Vector3 = observer.global_position if observer.is_inside_tree() else observer.position
 		if obs_pos.distance_to(location) > max_dist:
 			continue
 		if town_map_3d.has_method("has_clear_sightline_3d"):
@@ -750,7 +707,7 @@ func table_clue_by_id(resident_id: int, item_id: String, ignore_phase: bool = fa
 			return true
 	return false
 
-func prepare_first_council(residents: Array, town_map: Node) -> void:
+func prepare_first_council(residents: Array, town_map: Node3D) -> void:
 	tabled_evidence.clear()
 	alibi_statements.clear()
 	alibi_conflicts.clear()
@@ -773,8 +730,8 @@ func prepare_first_council(residents: Array, town_map: Node) -> void:
 			continue
 		var id: int = int(resident.resident_id)
 		var counts: Dictionary = region_samples.get(id, {})
-		var r_pos: Variant = (resident.global_position if resident.is_inside_tree() else resident.position) if (resident is Node3D or resident is Node2D) else Vector2.ZERO
-		var claim_region: String = town_map.get_region_name_at(r_pos)
+		var r_pos: Vector3 = resident.global_position if resident.is_inside_tree() else resident.position
+		var claim_region: String = town_map.get_region_name_at_3d(r_pos)
 		var best_count: int = -1
 		for region in counts.keys():
 			if int(counts[region]) > best_count:
@@ -1015,12 +972,13 @@ func record_beacon_access(resident: Node, region_name: String, site_name: String
 		_add_private_evidence(int(id_variant), C.EVIDENCE_FACT, message, region_name, stamp)
 	log_event("[OBSERVED FACT] [BEACON LOG] " + message, Color(1.0, 0.78, 0.36))
 
-func record_inspection_complete(resident: Node, target: Dictionary, _trace: Dictionary, town_map: Node2D, residents: Array) -> void:
+func record_inspection_complete_3d(resident: Node, target: Dictionary, _trace: Dictionary, town_map: Node, residents: Array) -> void:
 	if resident == null:
 		return
 	log_event("Site inspection completed at %s." % String(target.get("label", "site")), Color(0.48, 0.90, 1.0))
 	if town_map != null:
-		record_observed_sighting(resident, target.get("pos", resident.global_position), town_map, residents, "inspected a site in")
+		var location: Vector3 = target.get("pos", resident.global_position)
+		record_observed_sighting_3d(resident, location, town_map, residents, "inspected a site in")
 	state_updated.emit()
 
 func set_court_preview_mode(mode: String, residents: Array) -> void:
@@ -2284,34 +2242,6 @@ func record_shove(actor_name: String, target_name: String) -> void:
 func record_civic_ability(actor_name: String, ability_name: String, detail: String) -> void:
 	civic_abilities_used += 1
 	log_event("%s used %s (%s)." % [actor_name, ability_name, detail], Color(0.68, 0.90, 0.98))
-
-func record_faction_ability(caster: Node2D, town_map: Node2D, all_residents: Array) -> bool:
-	faction_abilities_used += 1
-	if current_phase != Phase.OPEN_TOWN:
-		return false
-	record_observed_sighting(caster, caster.global_position, town_map, all_residents, "used a special ability near")
-
-	# Check wall-validated sightline against all other non-incapacitated residents
-	var witnessed := false
-	for other in all_residents:
-		if other == null or other == caster or other.is_incapacitated:
-			continue
-		var other_allegiance: String = get_resident_alignment(other)
-		var max_dist: float = C.WITNESS_RADIUS * get_beacon_sightline_buff(other_allegiance)
-		var d: float = caster.global_position.distance_to(other.global_position)
-		if d <= max_dist and town_map.has_clear_sightline(caster.global_position, other.global_position):
-			witnessed = true
-			break
-
-	if witnessed:
-		witnessed_disturbances += 1
-		var region_name: String = town_map.get_region_name_at(caster.global_position)
-		var region_anchor: Vector2 = town_map.get_region_alert_anchor_at(caster.global_position)
-		# Strictly anonymous & kit-neutral public disturbance log + broad regional marker (never centered on the caster's exact position)
-		var alert_text: String = "Unusual activity reported near %s." % region_name
-		add_public_observed_fact(alert_text, region_name, _match_clock_text())
-		town_map.spawn_field_zone("disturbance_ring", region_anchor, 210.0, 5.5, 0, region_name)
-	return witnessed
 
 func record_faction_ability_3d(caster: Node3D, town_map_3d: Node, all_residents: Array) -> bool:
 	faction_abilities_used += 1

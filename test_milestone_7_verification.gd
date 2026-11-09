@@ -2,10 +2,8 @@ extends SceneTree
 
 const C = preload("res://scripts/GameConstants.gd")
 const GM = preload("res://scripts/GameManager.gd")
-const ResClass = preload("res://scripts/Resident.gd")
-const TownMapClass = preload("res://scripts/TownMap.gd")
-const PCClass = preload("res://scripts/PlayerController.gd")
-const HUDClass = preload("res://scripts/PublicHUD.gd")
+const ResClass = preload("res://scripts/Resident3D.gd")
+const Main3DClass = preload("res://scripts/Main3D.gd")
 
 func _init() -> void:
 	print("==================================================================")
@@ -367,23 +365,22 @@ func _init() -> void:
 	assert_test.call(gm.strategic_decision_active == true, "2-2 split transitions to strategic decision deliberation window")
 
 	# ------------------------------------------------------------------
-	# TEST GROUP 6: PlayerController & PublicHUD Input Routing
+	# TEST GROUP 6: 3D Main Input Routing
 	# ------------------------------------------------------------------
-	print("\n[TEST GROUP 6] PlayerController & PublicHUD Input Routing")
+	print("\n[TEST GROUP 6] 3D Main Input Routing")
 	gm = GM.new()
 	gm.session_residents = make_roster.call(true, 0) # Player is Civilian 1
 	gm.current_phase = gm.Phase.COURT
 	gm.start_sequential_court_ceremony()
 
-	var pc := PCClass.new()
-	pc.resident = gm.court_civilians[0]
-	pc.game_manager = gm
+	var main_3d := Main3DClass.new()
+	main_3d.game_manager = gm
 
-	# Test player casting ballot via PlayerController key 1 (Ecology)
+	# Test player casting ballot via the 3D main controller's key 1 (Ecology)
 	var ev1 := InputEventKey.new()
 	ev1.pressed = true
 	ev1.keycode = KEY_1
-	pc._input(ev1)
+	main_3d._unhandled_input(ev1)
 	assert_test.call(gm.court_ballot_records.size() == 1, "Pressing [1] in Court as active voter cast a ballot")
 	assert_test.call(gm.court_ballot_records[0]["vote"] == "Ecology", "Ballot cast via [1] recorded as Ecology")
 	assert_test.call(gm.court_voter_index == 1, "Turn advanced to next voter (bot)")
@@ -393,27 +390,22 @@ func _init() -> void:
 	var ev_space := InputEventKey.new()
 	ev_space.pressed = true
 	ev_space.keycode = KEY_SPACE
-	pc._input(ev_space)
+	main_3d._unhandled_input(ev_space)
 	assert_test.call(gm.court_fast_forward == true, "Pressing [Space] during bot court turn activates fast forward")
 
-	# Test PublicHUD button triggers
-	var hud := HUDClass.new()
-	hud.game_manager = gm
-	hud.town_map = TownMapClass.new()
-
-	# Re-init fresh court with player as voter 0
+	# A fresh court verifies the 3D controller routes the Technology ballot too.
 	gm = GM.new()
 	gm.session_residents = make_roster.call(true, 0)
 	gm.current_phase = gm.Phase.COURT
 	gm.start_sequential_court_ceremony()
-	hud.game_manager = gm
-
-	hud._activate_ui_button("court_vote_tech")
-	assert_test.call(gm.court_ballot_records.size() == 1, "PublicHUD button 'court_vote_tech' successfully cast a ballot")
-	assert_test.call(gm.court_ballot_records[0]["vote"] == "Technology", "HUD button cast ballot recorded as Technology")
-
-	hud._activate_ui_button("court_fast_forward")
-	assert_test.call(gm.court_fast_forward == true, "PublicHUD button 'court_fast_forward' activated fast forward")
+	main_3d = Main3DClass.new()
+	main_3d.game_manager = gm
+	var ev2 := InputEventKey.new()
+	ev2.pressed = true
+	ev2.keycode = KEY_2
+	main_3d._unhandled_input(ev2)
+	assert_test.call(gm.court_ballot_records.size() == 1, "Pressing [2] in Court as active voter casts a ballot")
+	assert_test.call(gm.court_ballot_records[0]["vote"] == "Technology", "Ballot cast via [2] recorded as Technology")
 
 	# Summary
 	print("\n==================================================================")

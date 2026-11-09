@@ -43,7 +43,7 @@ flowchart TD
   - 9 AI bots navigating between chores across the 4 sectors via 3D waypoints.
 - **Main 3D Scene (`scenes/Main3D.tscn` & `scripts/Main3D.gd`):**
   - Orchestrates the full 10-resident session, camera follow, and HUD in 3D.
-  - `scenes/Main3D.tscn` is the project launcher; `scenes/Main.tscn` remains available as the 2D scene.
+  - `scenes/Main3D.tscn` is the project launcher; the legacy 2D scene has since been retired.
 - **Automated Verification Suite (`test_full_3d_phase1.gd`):**
   - Verifies 10 residents, role distribution, waypoint navigation around 3D obstacles, 4 secret alcoves (1 active, identical visuals), locked generator/beacon labels, and sightline checks.
 
@@ -110,7 +110,7 @@ flowchart TD
 - Spawns `GameManager`, `TownMap3D`, and 10 `Resident3D` nodes in the Town Square council ring.
 - Follow camera tracks the player with smooth isometric damping.
 - Integrates screen-space 2D HUD over 3D viewport.
-- `project.godot` launches `Main3D.tscn`; `Main.tscn` remains available as the 2D scene.
+- `project.godot` launches `Main3D.tscn`; the legacy 2D scene and scripts have since been removed.
 
 ### 4. Verification Results (Phase 1)
 - **Phase 1 Test Suite (`test_full_3d_phase1.gd`):** **48 / 48 PASSED (100%)**

@@ -981,6 +981,11 @@ func _physics_process(delta: float) -> void:
 				var p_type: String = String(active_pad.get("task_type", ""))
 				if p_type == "pump" or p_type == "generator" or p_type == "generator_objective":
 					ch_mult *= 1.20
+			if game_manager != null and game_manager.current_phase == game_manager.Phase.FINALE:
+				var allegiance: String = get_allegiance()
+				ch_mult *= game_manager.get_archive_objective_speed_mult(allegiance)
+				if active_pad.get("task_type", "") == "generator_objective":
+					ch_mult *= game_manager.get_beacon_speed_buff(allegiance)
 			channel_progress += delta * ch_mult
 			var base_dur: float = 3.0 if active_pad.get("task_type", "") == "common_works" else 2.0
 			var req_duration: float = base_dur * task_channel_scale
@@ -1851,5 +1856,4 @@ func return_to_seat(seat_pos: Vector3) -> void:
 		var dir := (Vector3.ZERO - seat_pos).normalized()
 		if dir.length_squared() > 0.01:
 			mesh_root.rotation.y = atan2(-dir.x, -dir.z)
-
 
