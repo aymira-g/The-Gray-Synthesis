@@ -169,6 +169,9 @@ func _show_step() -> void:
 	if current_step < 0 or current_step >= GUIDE_STEPS.size():
 		visible = false
 		return
+	if _title_label == null or _body_label == null or _primary_button == null or _skip_button == null:
+		call_deferred("_show_step")
+		return
 	var step: Dictionary = GUIDE_STEPS[current_step]
 	_title_label.text = String(step["title"])
 	_body_label.text = String(step["body"])

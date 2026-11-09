@@ -1,5 +1,6 @@
 $tests = @(
     "test_hero_draft_lobby_matchmaking.gd",
+    "test_mode_selection_and_brawl_stage1.gd",
     "test_hero_roster_and_abilities.gd",
     "test_audio_mixer_and_settings.gd",
     "test_restrained_effects.gd",

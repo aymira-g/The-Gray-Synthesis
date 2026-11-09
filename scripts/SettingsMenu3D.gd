@@ -314,6 +314,7 @@ func _build_ui() -> void:
 	resume_btn = Button.new()
 	resume_btn.text = "◀  Resume Game [Esc]"
 	resume_btn.custom_minimum_size = Vector2(0, 36)
+	resume_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resume_btn.focus_mode = Control.FOCUS_NONE
 	resume_btn.pressed.connect(close_menu)
 	main_vbox.add_child(resume_btn)

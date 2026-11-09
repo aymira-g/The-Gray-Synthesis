@@ -4,7 +4,7 @@ extends SceneTree
 # The Gray Synthesis - Full 3D Phase 3 Automated Verification Suite
 # ==============================================================================
 # Verifies:
-# 1. Project Configuration: default main scene set to Main3D.tscn
+# 1. Project Configuration: Main3D.tscn is the normal player-facing launch scene
 # 2. First Council Assembly & Observations in 3D
 # 3. 3D Civilian Court Ceremony (podium walk, 3D speech bubble, sequential voting, fast forward)
 # 4. 4-0 Court Mandate Instant Victory & Podium Celebration in 3D
@@ -34,9 +34,9 @@ func _init() -> void:
 			print("  [FAIL] *** ", test_name, " ***")
 
 	# ------------------------------------------------------------------
-	# TEST GROUP 1: Project Configuration & 3D Main Scene Default
+	# TEST GROUP 1: Project Configuration & Town Mode Scene
 	# ------------------------------------------------------------------
-	print("\n[TEST GROUP 1] Project Configuration & 3D Main Scene Default")
+	print("\n[TEST GROUP 1] Project Configuration & Town Mode Scene")
 	var project_file := FileAccess.open("res://project.godot", FileAccess.READ)
 	assert_test.call(project_file != null, "project.godot file exists and is readable")
 	var project_text: String = ""
@@ -44,7 +44,7 @@ func _init() -> void:
 		project_text = project_file.get_as_text()
 		project_file.close()
 
-	assert_test.call(project_text.find("run/main_scene=\"res://scenes/Main3D.tscn\"") != -1, "project.godot default main scene is permanently set to res://scenes/Main3D.tscn")
+	assert_test.call(project_text.find("run/main_scene=\"res://scenes/Main3D.tscn\"") != -1, "project.godot starts directly in Town Match")
 
 	var main: Node3D = Main3DScene.instantiate()
 	root.add_child(main)
