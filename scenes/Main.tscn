@@ -1,0 +1,16 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/GameManager.gd" id="2_gm"]
+[ext_resource type="PackedScene" path="res://scenes/TownMap.tscn" id="3_map"]
+[ext_resource type="PackedScene" path="res://scenes/PublicHUD.tscn" id="4_hud"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="GameManager" type="Node" parent="."]
+script = ExtResource("2_gm")
+
+[node name="TownMap" parent="." instance=ExtResource("3_map")]
+
+[node name="PublicHUD" parent="." instance=ExtResource("4_hud")]

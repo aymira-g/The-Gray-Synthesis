@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Slice3D_Integration.gd" id="1_slice3d"]
+
+[node name="Slice3D_Integration" type="Node3D"]
+script = ExtResource("1_slice3d")

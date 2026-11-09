@@ -1,0 +1,12 @@
+# Godot editor cache and imported data
+.godot/
+
+# Local engine downloads, editor data, and signing material
+.tools/
+
+# Exported builds
+/build/
+
+# OS metadata
+.DS_Store
+Thumbs.db
