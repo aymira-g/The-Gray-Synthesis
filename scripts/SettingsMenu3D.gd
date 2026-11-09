@@ -241,7 +241,7 @@ func _build_ui() -> void:
 	main_vbox.add_child(ctrl_header)
 
 	var ctrl_lbl := Label.new()
-	ctrl_lbl.text = "Move: [WASD] • Sprint: [Shift] • Task/Inspect: [E] • Shove: [Q/R] • Civic Kit: [F] • Special: [C]\nJournal: [J] • Zoom: [Z/Wheel] • Help: [H] • Settings: [Esc]"
+	ctrl_lbl.text = "Move: [WASD] • Sprint: [Shift] • Channel: [E] • Inspect: [V] • Shove: [R]\nHero ability: [F] • Operative ability: [C] • Journal: [J] • Zoom: [Z/Wheel] • Help: [H] • Settings: [Esc]"
 	ctrl_lbl.add_theme_font_size_override("font_size", 11)
 	ctrl_lbl.modulate = Color(0.74, 0.78, 0.85)
 	main_vbox.add_child(ctrl_lbl)

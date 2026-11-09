@@ -17,6 +17,7 @@ $tests = @(
     "test_sound_and_audio_atmosphere.gd",
     "test_visual_and_atmospheric_polish.gd",
     "test_player_indicators_and_controls.gd",
+    "test_first_match_guide.gd",
     "test_full_3d_phase2.gd",
     "test_full_3d_phase1.gd",
     "test_slice_3d_integration.gd",

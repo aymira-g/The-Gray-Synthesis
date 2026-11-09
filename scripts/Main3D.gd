@@ -21,6 +21,7 @@ const EvidenceJournalClass = preload("res://scripts/EvidenceJournal3D.gd")
 const PlaytestTuningPanelClass = preload("res://scripts/PlaytestTuningPanel3D.gd")
 const SettingsMenuClass = preload("res://scripts/SettingsMenu3D.gd")
 const HeroDraftLobbyClass = preload("res://scripts/HeroDraftLobby3D.gd")
+const FirstMatchGuideClass = preload("res://scripts/FirstMatchGuide3D.gd")
 const C = preload("res://scripts/GameConstants.gd")
 
 const CIVIC_JOBS: Array[String] = [
@@ -106,6 +107,7 @@ var channel_action_label: Label
 var channel_progress_bar: ProgressBar
 
 var help_overlay: PanelContainer
+var onboarding_guide
 var radar_minimap: Control
 var evidence_journal: PanelContainer
 var playtest_tuning_panel: PanelContainer
@@ -165,6 +167,7 @@ func _ready() -> void:
 
 	_setup_session_residents()
 	_setup_hud()
+	player_node.connect("task_completed", Callable(onboarding_guide, "notify_task_completed"))
 
 	# Connect GameManager lifecycle signals
 	game_manager.phase_changed.connect(_on_phase_changed)
@@ -480,23 +483,32 @@ func _setup_hud() -> void:
 	var h_text := Label.new()
 	h_text.text = """[CONTROLS]
 WASD: Direct Movement  |  Shift: Sprint (Consumes Stamina)
-[E]: Channel Civic Station (Restore Water, Stability, Scrap, or Common Works)
-[V]: Inspect Secluded Bedrock Alcove (Locate hidden Archive Failsafe Key)
+[E]: Channel a nearby station (Restore Water, Stability, Scrap, or Common Works)
+[V]: Inspect a nearby secluded alcove (Search for the hidden Archive Failsafe Key)
 [R]: Civic Shove (Knockback target, 35 Stamina Dmg, 5s Cooldown)
-[F]: Use Civic Job Kit  |  [C]: Use Faction Operative Kit
+[F]: Use your Hero's active ability  |  [C]: Use your faction's operative ability
 [J]: Open Private Evidence Journal & Alibi Analysis
 Mouse Wheel / [Z]: Zoom Camera In / Out
 [H]: Toggle this Field Manual
 
 [MATCH PROGRESSION & OBJECTIVES]
 1. Briefing -> 2. Open Town -> 3. First Council -> 4. Escalation -> 5. Court -> 6. Finale
-- Ecology: Prime generators, stabilize biosphere, win Court vote, or overload 0%
-- Technology: Overclock stations, governor tuning, win Court vote, or prime 100%
-- Civilian Peace: Complete Common Works (100%) or broker Peace Charter
-- Archive Key: 1 of 4 secluded alcoves holds the unseal key to secure victory!"""
+- During Open Town, gather clues and complete civic tasks. Journal clues are private until you table them at First Council.
+- At First Council, share useful evidence and vote on a civic motion. Escalation unlocks faction objectives and operative abilities.
+- Court votes determine the town's alignment. A split vote opens a final strategic choice; the Finale resolves the match.
+- One of four secluded alcoves holds the Archive. Inspect alcoves to search for it."""
 	h_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	h_text.add_theme_font_size_override("font_size", 14)
 	h_vbox.add_child(h_text)
+
+	var replay_guide_button := Button.new()
+	replay_guide_button.text = "Replay First-Match Guide"
+	replay_guide_button.focus_mode = Control.FOCUS_NONE
+	replay_guide_button.pressed.connect(func():
+		help_overlay.visible = false
+		onboarding_guide.replay_guide()
+	)
+	h_vbox.add_child(replay_guide_button)
 
 	var h_close := Label.new()
 	h_close.text = "\n[Press H or ESC to Close]"
@@ -504,6 +516,10 @@ Mouse Wheel / [Z]: Zoom Camera In / Out
 	h_close.add_theme_font_size_override("font_size", 15)
 	h_close.modulate = Color(0.7, 0.7, 0.75)
 	h_vbox.add_child(h_close)
+
+	onboarding_guide = FirstMatchGuideClass.new()
+	onboarding_guide.name = "FirstMatchGuide3D"
+	ui_layer.add_child(onboarding_guide)
 
 	# 6.5 Tactical Radar Minimap
 	radar_minimap = RadarMinimapClass.new()
@@ -921,10 +937,14 @@ func _on_phase_changed(new_phase: int) -> void:
 			camera_mode = "follow_player"
 			refresh_bot_memories()
 			town_map.release_reservations_for(player_node)
+			if onboarding_guide != null:
+				onboarding_guide.begin_first_match(player_node.global_position if player_node.is_inside_tree() else player_node.position)
 			_show_phase_banner("PHASE 2: OPEN TOWN", "Tend civic stations, monitor sectors, and observe suspicious movements", Color(0.55, 0.95, 0.70))
 
 		game_manager.Phase.FIRST_COUNCIL:
 			camera_mode = "wide_council"
+			if onboarding_guide != null:
+				onboarding_guide.reach_first_council()
 			for i in range(residents.size()):
 				residents[i].gather_at_council_ring(spawn_positions[i])
 			town_map.reset_pads()
@@ -1074,6 +1094,8 @@ func _process(delta: float) -> void:
 	_update_court_ceremony(delta)
 	_update_ambient_audio(delta)
 	_update_archive_dilemma(delta)
+	if onboarding_guide != null and game_manager != null and game_manager.current_phase == game_manager.Phase.OPEN_TOWN and player_node != null:
+		onboarding_guide.notify_player_position(player_node.global_position if player_node.is_inside_tree() else player_node.position)
 	_update_hud()
 
 var sighting_sample_timer: float = 0.0
@@ -1338,6 +1360,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.keycode == KEY_J:
 		if evidence_journal != null:
 			evidence_journal.toggle_journal()
+			if evidence_journal.visible and onboarding_guide != null:
+				onboarding_guide.notify_journal_opened()
 		return
 	elif event.keycode == KEY_ESCAPE and evidence_journal != null and evidence_journal.visible:
 		evidence_journal.close_journal()
@@ -1584,7 +1608,7 @@ func _update_hud() -> void:
 			"" if is_op else " or [3]"
 		]
 	elif game_manager.current_phase == game_manager.Phase.BRIEFING:
-		status_label.text = "[TOWN BRIEFING] Press [Space] or [Enter] to begin Open Town | Review your secret dossier | [H] Help"
+		status_label.text = "[TOWN BRIEFING] %s | [Space] Begin | [H] Field Manual" % _get_briefing_objective()
 	elif game_manager.current_phase == game_manager.Phase.FIRST_COUNCIL:
 		_refresh_council_motion_ballot()
 		var m_name: String = "Motion 1 (Beacons)"
@@ -1642,6 +1666,8 @@ func start_new_match() -> void:
 	if phase_banner != null:
 		phase_banner.visible = false
 	phase_banner_timer = 0.0
+	if onboarding_guide != null:
+		onboarding_guide.reset_for_match_restart()
 
 	town_map.reset_pads()
 	if bot_seed < 0:
@@ -1675,3 +1701,14 @@ func select_player_hero_by_index(hero_idx: int) -> void:
 func select_player_hero_by_id(h_id: String) -> void:
 	if hero_draft_lobby != null:
 		hero_draft_lobby.select_hero_by_id(h_id, false)
+
+func _get_briefing_objective() -> String:
+	if player_node == null:
+		return "Review your role and choose a Hero"
+	match player_node.secret_role:
+		"ecology":
+			return "You are Ecology: protect the town's living systems and build support"
+		"technology":
+			return "You are Technology: advance your faction's path to victory"
+		_:
+			return "You are a Civilian: gather clues and decide which faction to trust"

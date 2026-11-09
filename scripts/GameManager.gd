@@ -433,7 +433,7 @@ func set_phase(new_phase: int) -> void:
 	match new_phase:
 		Phase.BRIEFING:
 			dossier_open = true
-			log_event("Town Briefing: Review your private dossier [B]. Press [Space] or [N] when ready.", Color(0.78, 0.88, 1.0))
+			log_event("Town Briefing: Review your role and choose a Hero. Press [Space] or [Enter] when ready.", Color(0.78, 0.88, 1.0))
 		Phase.OPEN_TOWN:
 			dossier_open = false
 			log_event("Open Town (6:00): Civic kits [F] active. Early [C] use risks witness clues!", Color(0.65, 0.92, 0.75))

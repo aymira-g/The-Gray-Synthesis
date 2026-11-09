@@ -16,6 +16,7 @@ extends CharacterBody3D
 const C = preload("res://scripts/GameConstants.gd")
 
 signal trauma_impact_requested(amount: float, source_pos: Vector3)
+signal task_completed
 
 var resident_id: int = 1
 var resident_name: String = "Resident 1"
@@ -1013,6 +1014,8 @@ func _physics_process(delta: float) -> void:
 				var summary: String = ""
 				if town_map != null:
 					summary = town_map.finish_using_pad(completed_pad, self, is_player)
+				if is_player:
+					task_completed.emit()
 				if audio_manager != null:
 					audio_manager.play_sfx_3d("task_complete", my_pos)
 				show_popup("Task Complete! " + summary, Color(0.55, 0.98, 0.65))
@@ -1856,4 +1859,3 @@ func return_to_seat(seat_pos: Vector3) -> void:
 		var dir := (Vector3.ZERO - seat_pos).normalized()
 		if dir.length_squared() > 0.01:
 			mesh_root.rotation.y = atan2(-dir.x, -dir.z)
-
